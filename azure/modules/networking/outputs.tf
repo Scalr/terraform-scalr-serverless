@@ -4,6 +4,6 @@ output "vnet_id" {
 }
 
 output "subnet_id" {
-  description = "Subnet ID for Azure Container Instances"
-  value       = azurerm_subnet.aci.id
+  description = "Subnet ID for Container Apps environment"
+  value       = azurerm_subnet.container_apps.id
 }

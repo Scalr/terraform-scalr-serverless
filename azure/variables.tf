@@ -35,20 +35,25 @@ variable "container_image" {
 }
 
 variable "container_cpu" {
-  description = "CPU cores for each agent container instance"
+  description = "CPU cores for each agent container"
   type        = number
   default     = 2
 }
 
 variable "container_memory_gb" {
-  description = "Memory in GB for each agent container instance"
+  description = "Memory in GB for each agent container"
   type        = number
   default     = 4
 }
 
-variable "scalr_webhook_url" {
-  description = "Scalr agent pool webhook URL. Leave empty on first apply, then set to the webhook_url output and re-apply to register the pool."
-  type        = string
-  default     = ""
-  sensitive   = true
+variable "job_timeout" {
+  description = "Maximum run time per agent job in seconds"
+  type        = number
+  default     = 3600
+}
+
+variable "max_parallel_runs" {
+  description = "Maximum number of parallel agent runs"
+  type        = number
+  default     = 10
 }

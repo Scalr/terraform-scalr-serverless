@@ -21,8 +21,6 @@ provider "azurerm" {
   use_cli = true
 }
 
-data "azurerm_client_config" "current" {}
-
 module "scalr_ips" {
   source = "../modules/common/scalr-ips"
 }
@@ -79,10 +77,6 @@ module "webhook" {
   name                = var.name_prefix
   location            = var.azure_location
   resource_group_name = module.resource_group.name
-  resource_group_id   = module.resource_group.id
-  subscription_id     = data.azurerm_client_config.current.subscription_id
-  allowed_ips         = module.scalr_ips.allowed_ips
-  allow_all_ingress   = var.allow_all_ingress
   subnet_id           = module.networking.subnet_id
   container_image     = module.registry.image
   registry_server     = module.registry.login_server
@@ -96,4 +90,6 @@ module "webhook" {
   storage_account_key        = module.storage.storage_account_key
   terraform_cache_share_name = module.storage.terraform_cache_share_name
   providers_cache_share_name = module.storage.providers_cache_share_name
+  job_timeout                = var.job_timeout
+  max_parallel_runs          = var.max_parallel_runs
 }

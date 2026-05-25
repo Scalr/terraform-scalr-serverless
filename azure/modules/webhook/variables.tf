@@ -1,5 +1,5 @@
 variable "name" {
-  description = "Name prefix for webhook resources"
+  description = "Name prefix for Container Apps resources"
   type        = string
 }
 
@@ -13,30 +13,8 @@ variable "resource_group_name" {
   type        = string
 }
 
-variable "resource_group_id" {
-  description = "Resource group ID (for role assignment scope)"
-  type        = string
-}
-
-variable "allow_all_ingress" {
-  description = "Reserved for future IP restrictions (Logic App Consumption has no App Service Plan)"
-  type        = bool
-  default     = false
-}
-
-variable "allowed_ips" {
-  description = "Reserved for future IP restrictions on the webhook endpoint"
-  type        = list(string)
-  default     = []
-}
-
-variable "subscription_id" {
-  description = "Azure subscription ID"
-  type        = string
-}
-
 variable "subnet_id" {
-  description = "Optional subnet ID for Azure Container Instances"
+  description = "Optional subnet ID for the Container Apps environment"
   type        = string
   default     = ""
 }
@@ -47,13 +25,13 @@ variable "container_image" {
 }
 
 variable "container_cpu" {
-  description = "Container CPU cores for each agent run"
+  description = "CPU cores for each agent container"
   type        = number
   default     = 2
 }
 
 variable "container_memory_gb" {
-  description = "Container memory in GB for each agent run"
+  description = "Memory in GB for each agent container"
   type        = number
   default     = 4
 }
@@ -70,7 +48,7 @@ variable "scalr_agent_token" {
 }
 
 variable "registry_server" {
-  description = "Container registry login server (e.g. myacr.azurecr.io). Leave empty to pull from Docker Hub."
+  description = "Container registry login server (e.g. myacr.azurecr.io)"
   type        = string
   default     = ""
 }
@@ -111,4 +89,16 @@ variable "providers_cache_share_name" {
   description = "Azure Files share for Terraform provider cache"
   type        = string
   default     = ""
+}
+
+variable "job_timeout" {
+  description = "Maximum run time per agent job in seconds"
+  type        = number
+  default     = 3600
+}
+
+variable "max_parallel_runs" {
+  description = "Maximum number of parallel agent runs"
+  type        = number
+  default     = 10
 }

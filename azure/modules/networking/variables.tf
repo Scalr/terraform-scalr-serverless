@@ -20,7 +20,7 @@ variable "address_space" {
 }
 
 variable "subnet_prefix" {
-  description = "Subnet address prefix"
+  description = "Subnet address prefix (Container Apps needs at least /23)"
   type        = string
-  default     = "10.0.1.0/24"
+  default     = "10.0.0.0/23"
 }

@@ -1,15 +1,25 @@
 output "url" {
-  description = "Logic App HTTP trigger callback URL (includes SAS authentication)"
+  description = "Logic App HTTP trigger callback URL (webhook endpoint for Scalr)"
   value       = azurerm_logic_app_trigger_http_request.this.callback_url
   sensitive   = true
 }
 
-output "workflow_name" {
-  description = "Logic App workflow name"
-  value       = azurerm_logic_app_workflow.this.name
+output "environment_id" {
+  description = "Container Apps environment ID"
+  value       = azurerm_container_app_environment.this.id
 }
 
-output "workflow_id" {
-  description = "Logic App workflow ID"
-  value       = azurerm_logic_app_workflow.this.id
+output "environment_name" {
+  description = "Container Apps environment name"
+  value       = azurerm_container_app_environment.this.name
+}
+
+output "job_name" {
+  description = "Container Apps Job name"
+  value       = azurerm_container_app_job.scalr_agent.name
+}
+
+output "job_id" {
+  description = "Container Apps Job ID"
+  value       = azurerm_container_app_job.scalr_agent.id
 }
