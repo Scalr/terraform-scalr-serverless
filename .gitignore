@@ -46,3 +46,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Terraform generated files
+**/lambda_function.zip
+**/function_package.zip
+azure/function_app/

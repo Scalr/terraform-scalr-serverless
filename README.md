@@ -1,6 +1,6 @@
 # Scalr Serverless Agent Pool Infrastructure
 
-This Terraform configuration deploys a complete serverless infrastructure for running Scalr agent pools on AWS, featuring:
+This Terraform configuration deploys serverless infrastructure for running Scalr agent pools on **AWS** or **Azure**, featuring:
 
 - **Secure API Gateway** with Scalr.io IP restrictions
 - **Lambda function** for triggering ECS tasks
@@ -10,9 +10,19 @@ This Terraform configuration deploys a complete serverless infrastructure for ru
 
 ## Architecture
 
+**AWS**
+
 ```
 Scalr.io Webhook → API Gateway → Lambda → ECS Fargate (with EFS cache)
 ```
+
+**Azure**
+
+```
+Scalr.io Webhook → Logic App → Container Apps Job (with Azure Files cache)
+```
+
+Uses Azure Container Apps Jobs for fast cold starts (~5-15s) vs ~2min with ACI. A lightweight Consumption Logic App receives the Scalr webhook and starts a job execution via the ARM API. Images are mirrored to ACR to avoid Docker Hub rate limits.
 
 ## Features
 
@@ -25,11 +35,12 @@ Scalr.io Webhook → API Gateway → Lambda → ECS Fargate (with EFS cache)
 
 ## Prerequisites
 
-- AWS CLI configured with appropriate permissions
-- Terraform >= 1.0
-- Scalr account and API access
+- Terraform >= 1.0 (OpenTofu supported)
+- Scalr account and API access (`SCALR_HOSTNAME`, `SCALR_TOKEN`)
+- **AWS**: AWS CLI configured with appropriate permissions
+- **Azure**: Azure CLI logged in (`az login`) and subscription access
 
-## Quick Start
+## Quick Start (AWS)
 
 1. **Clone and configure**:
    ```bash
@@ -62,10 +73,34 @@ Scalr.io Webhook → API Gateway → Lambda → ECS Fargate (with EFS cache)
    tofu output api_key
    ```
 
-5. **Configure in Scalr**:
-   - Add the webhook URL to your Scalr environment
-   - Use the API key for authentication
+5. **Configure in Scalr** (if not using automated agent pool wiring):
+   - Agent pool webhook URL and API key are configured automatically when `webhook_url` is set on the agent pool module
    - Test the webhook functionality
+
+## Quick Start (Azure)
+
+1. **Configure variables**:
+   ```bash
+   cd azure
+   cp terraform.tfvars.example terraform.tfvars
+   ```
+
+2. **Deploy**:
+   ```bash
+   tofu init
+   tofu plan
+   tofu apply
+   ```
+
+3. **Verify**:
+   ```bash
+   tofu output agent_pool_id
+   tofu output container_app_job
+   ```
+
+The Azure stack creates a Scalr agent pool, an Azure Container Apps environment with a Job, and an ACR mirror of the agent image. When Scalr triggers a run, the Container Apps Job spins up an agent container in ~5-15 seconds (vs ~2 minutes with ACI). Azure Files provides persistent Terraform cache across runs.
+
+Additional agent pools can be added in `azure/serverless-agent-pools.tf`.
 
 ## Future Integration
 
@@ -92,25 +127,7 @@ The architecture supports future bidirectional integration where the agent pool 
    }
    ```
 
-2. **Uncomment the serverless block** in `modules/scalr/agent-pool/main.tf`:
-   ```hcl
-   resource "scalr_agent_pool" "webhook" {
-     name = var.agent_pool_name
-     
-     serverless {
-       api_gateway_url = var.webhook_url
-       
-       dynamic "header" {
-         for_each = var.webhook_headers
-         content {
-           name      = header.value.name
-           value     = header.value.value
-           sensitive = header.value.sensitive
-         }
-       }
-     }
-   }
-   ```
+2. Serverless webhook configuration is enabled via `api_gateway_url` and `header` blocks on `scalr_agent_pool` (see `modules/scalr/agent-pool`).
 
 ## Security Configuration
 
@@ -147,12 +164,12 @@ Environment variables automatically configured:
 | `vpc_name`          | VPC name prefix                           | `scalr-agent` |
 
 ### ECS Settings
-| Variable                | Description               | Default                     |
-|-------------------------|---------------------------|-----------------------------|
-| `ecs_limit_cpu`         | ECS task CPU units        | `2048`                      |
-| `ecs_limit_memory`      | ECS task memory (MB)      | `4096`                      |
-| `ecs_image`             | Container image           | `scalr/agent-runner:latest` |
-| `ecs_task_stop_timeout` | Graceful shutdown timeout | `120`                       |
+| Variable                | Description               | Default                    |
+|-------------------------|---------------------------|----------------------------|
+| `ecs_limit_cpu`         | ECS task CPU units        | `2048`                     |
+| `ecs_limit_memory`      | ECS task memory (MB)      | `4096`                     |
+| `ecs_image`             | Container image           | `scalr/agent:latest` |
+| `ecs_task_stop_timeout` | Graceful shutdown timeout | `120`                      |
 
 ### Lambda Settings
 | Variable             | Description              | Default      |
@@ -220,7 +237,7 @@ resource "scalr_workspace" "example" {
 Build your own image with pre-cached providers:
 
 ```dockerfile
-FROM scalr/agent-runner:latest
+FROM scalr/agent:latest
 # Add your customizations
 COPY providers/ /terraform-cache/
 ```

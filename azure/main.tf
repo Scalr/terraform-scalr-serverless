@@ -9,20 +9,12 @@ terraform {
     scalr = {
       source = "scalr/scalr"
     }
-    http = {
-      source  = "hashicorp/http"
-      version = "~> 3.0"
-    }
   }
 }
 
 provider "azurerm" {
   features {}
-  use_cli = true
-}
-
-module "scalr_ips" {
-  source = "../modules/common/scalr-ips"
+  resource_provider_registrations = "extended"
 }
 
 module "resource_group" {
@@ -63,6 +55,11 @@ module "agent_pool" {
   agent_pool_name = var.agent_pool_name
   webhook_url     = module.webhook.url
   webhook_headers = [
+    {
+      name      = "Ocp-Apim-Subscription-Key"
+      value     = module.webhook.api_key
+      sensitive = true
+    },
     {
       name      = "Content-Type"
       value     = "application/json"

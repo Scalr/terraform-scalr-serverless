@@ -53,7 +53,7 @@ variable "ecs_limit_memory" {
 variable "ecs_image" {
   type        = string
   description = "ECS container image"
-  default     = "scalr/agent-runner:latest"
+  default     = "scalr/agent:latest"
 }
 
 

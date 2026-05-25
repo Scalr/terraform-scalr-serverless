@@ -5,9 +5,6 @@ azure_location      = "eastus"
 resource_group_name = "scalr-serverless-rg"
 name_prefix         = "scalr-agent"
 
-# Security: set to false to restrict webhook to Scalr.io IPs
-allow_all_ingress = false
-
 agent_pool_name = "azure-serverless"
 
 container_image       = "scalr/agent:latest"

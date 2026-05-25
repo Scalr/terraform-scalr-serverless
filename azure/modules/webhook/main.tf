@@ -1,51 +1,78 @@
-# Logic App receives the Scalr webhook and starts a Container Apps Job execution.
-# Starting a job is near-instant (~5s cold start) compared to creating an ACI container (~2min).
+# API Management (Consumption) receives the Scalr webhook, authenticates via
+# subscription key, and starts a Container Apps Job execution using managed identity.
 
-resource "azurerm_logic_app_workflow" "this" {
-  name                = "${var.name}-webhook"
+resource "azurerm_api_management" "this" {
+  name                = "${var.name}-apim"
   location            = var.location
   resource_group_name = var.resource_group_name
+  publisher_name      = "Scalr"
+  publisher_email     = "noreply@scalr.com"
+  sku_name            = "Consumption_0"
 
   identity {
     type = "SystemAssigned"
   }
 }
 
-resource "azurerm_logic_app_trigger_http_request" "this" {
-  name         = "scalr-webhook"
-  logic_app_id = azurerm_logic_app_workflow.this.id
-
-  schema = jsonencode({
-    type = "object"
-  })
+resource "azurerm_api_management_api" "webhook" {
+  name                  = "scalr-webhook"
+  resource_group_name   = var.resource_group_name
+  api_management_name   = azurerm_api_management.this.name
+  revision              = "1"
+  display_name          = "Scalr Webhook"
+  path                  = "webhook"
+  protocols             = ["https"]
+  subscription_required = true
 }
 
-resource "azurerm_logic_app_action_custom" "start_job" {
-  name         = "start-container-app-job"
-  logic_app_id = azurerm_logic_app_workflow.this.id
-
-  body = jsonencode({
-    type = "Http"
-    inputs = {
-      method = "POST"
-      uri    = "https://management.azure.com${azurerm_container_app_job.scalr_agent.id}/start?api-version=2024-03-01"
-      authentication = {
-        type = "ManagedServiceIdentity"
-      }
-      headers = {
-        "Content-Type" = "application/json"
-      }
-      body = {}
-    }
-    runAfter = {}
-  })
+resource "azurerm_api_management_api_operation" "trigger" {
+  operation_id        = "trigger-agent"
+  api_name            = azurerm_api_management_api.webhook.name
+  api_management_name = azurerm_api_management.this.name
+  resource_group_name = var.resource_group_name
+  display_name        = "Trigger Agent"
+  method              = "POST"
+  url_template        = "/"
 }
 
-resource "azurerm_role_assignment" "job_contributor" {
+resource "azurerm_api_management_api_policy" "webhook" {
+  api_name            = azurerm_api_management_api.webhook.name
+  api_management_name = azurerm_api_management.this.name
+  resource_group_name = var.resource_group_name
+
+  xml_content = <<-XML
+    <policies>
+      <inbound>
+        <base />
+        <send-request mode="new" response-variable-name="job-response" timeout="30" ignore-error="false">
+          <set-url>https://management.azure.com${azurerm_container_app_job.scalr_agent.id}/start?api-version=2024-03-01</set-url>
+          <set-method>POST</set-method>
+          <set-header name="Content-Type" exists-action="override">
+            <value>application/json</value>
+          </set-header>
+          <set-body>{}</set-body>
+          <authentication-managed-identity resource="https://management.azure.com/" />
+        </send-request>
+        <return-response response-variable-name="job-response" />
+      </inbound>
+    </policies>
+  XML
+}
+
+resource "azurerm_api_management_subscription" "webhook" {
+  api_management_name = azurerm_api_management.this.name
+  resource_group_name = var.resource_group_name
+  display_name        = "Scalr Webhook"
+  state               = "active"
+}
+
+resource "azurerm_role_assignment" "apim_job_contributor" {
   scope                = azurerm_container_app_job.scalr_agent.id
   role_definition_name = "Contributor"
-  principal_id         = azurerm_logic_app_workflow.this.identity[0].principal_id
+  principal_id         = azurerm_api_management.this.identity[0].principal_id
 }
+
+# --- Container Apps Environment & Job ---
 
 resource "azurerm_container_app_environment" "this" {
   name                = "${var.name}-env"

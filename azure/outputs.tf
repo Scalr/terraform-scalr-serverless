@@ -10,8 +10,13 @@ output "agent_token" {
 }
 
 output "webhook_url" {
-  description = "Logic App HTTP trigger callback URL (webhook endpoint for Scalr)"
+  description = "APIM webhook endpoint URL"
   value       = module.webhook.url
+}
+
+output "api_key" {
+  description = "APIM subscription key for webhook authentication"
+  value       = module.webhook.api_key
   sensitive   = true
 }
 
@@ -23,11 +28,6 @@ output "container_app_environment" {
 output "container_app_job" {
   description = "Container Apps Job name"
   value       = module.webhook.job_name
-}
-
-output "scalr_allowed_ips" {
-  description = "Official Scalr.io IP addresses"
-  value       = module.scalr_ips.allowed_ips
 }
 
 output "resource_group_name" {

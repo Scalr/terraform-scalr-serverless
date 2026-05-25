@@ -1,6 +1,11 @@
 output "url" {
-  description = "Logic App HTTP trigger callback URL (webhook endpoint for Scalr)"
-  value       = azurerm_logic_app_trigger_http_request.this.callback_url
+  description = "APIM webhook endpoint URL"
+  value       = "${azurerm_api_management.this.gateway_url}/${azurerm_api_management_api.webhook.path}/"
+}
+
+output "api_key" {
+  description = "API subscription key for webhook authentication (Ocp-Apim-Subscription-Key header)"
+  value       = azurerm_api_management_subscription.webhook.primary_key
   sensitive   = true
 }
 

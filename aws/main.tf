@@ -28,11 +28,11 @@ data "aws_availability_zones" "available" {
 
 # Fetch official Scalr.io IP addresses (independent module)
 module "scalr_ips" {
-  source = "./modules/common/scalr-ips"
+  source = "../modules/common/scalr-ips"
 }
 
 module "api_gateway" {
-  source = "./modules/aws/api-gateway"
+  source = "./modules/api-gateway"
 
   name                   = var.api_gateway_name
   environment            = var.api_gateway_environment
@@ -43,7 +43,7 @@ module "api_gateway" {
 }
 
 module "networking" {
-  source = "./modules/aws/networking"
+  source = "./modules/networking"
 
   name = var.vpc_name
   cidr = "10.0.0.0/16"
@@ -52,7 +52,7 @@ module "networking" {
 }
 
 module "efs" {
-  source = "./modules/aws/efs"
+  source = "./modules/efs"
 
   name       = "${var.vpc_name}-cache"
   vpc_id     = module.networking.vpc_id
@@ -61,7 +61,7 @@ module "efs" {
 }
 
 module "lambda" {
-  source = "./modules/aws/lambda"
+  source = "./modules/lambda"
 
   subnet_ids          = module.networking.public_subnet_ids
   cluster_name        = module.ecs.cluster_name
@@ -76,7 +76,7 @@ module "lambda" {
 }
 
 module "agent_pool" {
-  source = "./modules/scalr/agent-pool"
+  source = "../modules/scalr/agent-pool"
   
   webhook_url = module.api_gateway.url
   webhook_headers = [
@@ -94,7 +94,7 @@ module "agent_pool" {
 }
 
 module "ecs" {
-  source            = "./modules/aws/ecs"
+  source            = "./modules/ecs"
   vpc_id            = module.networking.vpc_id
   allow_all_ingress = var.allow_all_ingress
   limit_cpu         = var.ecs_limit_cpu

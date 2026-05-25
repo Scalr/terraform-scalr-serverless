@@ -16,12 +16,6 @@ variable "name_prefix" {
   default     = "scalr-agent"
 }
 
-variable "allow_all_ingress" {
-  description = "Whether to allow all ingress traffic (overrides Scalr IP whitelist)"
-  type        = bool
-  default     = false
-}
-
 variable "agent_pool_name" {
   description = "Scalr serverless agent pool name"
   type        = string
