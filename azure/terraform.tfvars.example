@@ -1,0 +1,18 @@
+# Example Terraform variables for Azure serverless agent pool
+# Copy to terraform.tfvars and customize for your environment
+
+azure_location      = "eastus"
+resource_group_name = "scalr-serverless-rg"
+name_prefix         = "scalr-agent"
+
+# Security: set to false to restrict webhook to Scalr.io IPs
+allow_all_ingress = false
+
+agent_pool_name = "azure-serverless"
+
+container_image       = "scalr/agent:latest"
+container_cpu         = 2
+container_memory_gb   = 4
+
+# After the first apply, set this from: tofu output -raw webhook_url
+# scalr_webhook_url = "https://prod-....logic.azure.com:443/workflows/..."
