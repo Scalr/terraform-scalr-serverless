@@ -21,7 +21,7 @@ ecs_cluster_name        = "scalr-agent-pool-cluster"
 ecs_task_name          = "scalr-agent-run"
 ecs_limit_cpu          = 2048
 ecs_limit_memory       = 4096
-ecs_image              = "scalr/agent-runner:latest"
+ecs_image              = "scalr/agent:latest"
 ecs_task_stop_timeout  = 120
 ecs_security_group_name = "scalr-agent-ecs-tasks"
 
