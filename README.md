@@ -22,7 +22,7 @@ Scalr.io ── webhook ──> API Gateway ── auth ──> Ephemeral Contai
 
 | | AWS | Azure |
 |---|---|---|
-| **Webhook gateway** | API Gateway + Lambda | API Management (Consumption) |
+| **Webhook gateway** | API Gateway (REST API) + Lambda | API Management (Consumption) |
 | **Compute** | ECS Fargate | Container Apps Job |
 | **Cache storage** | EFS | Azure Files |
 | **Cold start** | ~10-20s | ~5-15s |

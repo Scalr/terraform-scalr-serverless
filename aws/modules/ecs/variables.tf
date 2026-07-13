@@ -30,7 +30,11 @@ variable "image" {
 }
 
 variable "scalr_url" {}
-variable "scalr_agent_token" {}
+
+variable "scalr_agent_token" {
+  type      = string
+  sensitive = true
+}
 
 variable "limit_cpu" {
   type        = number

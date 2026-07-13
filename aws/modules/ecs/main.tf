@@ -51,6 +51,33 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# The agent token is stored as a plaintext secret (raw string, not JSON) so ECS
+# injects it verbatim as SCALR_TOKEN.
+resource "aws_secretsmanager_secret" "scalr_agent_token" {
+  name_prefix = "${var.task_name}-token-"
+}
+
+resource "aws_secretsmanager_secret_version" "scalr_agent_token" {
+  secret_id     = aws_secretsmanager_secret.scalr_agent_token.id
+  secret_string = var.scalr_agent_token
+}
+
+resource "aws_iam_role_policy" "ecs_task_execution_secrets" {
+  name = "${var.task_name}-secrets-policy"
+  role = aws_iam_role.ecs_task_execution_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "secretsmanager:GetSecretValue"
+        Resource = aws_secretsmanager_secret.scalr_agent_token.arn
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role" "ecs_task_role" {
   name = "${var.task_name}-role"
 
@@ -149,14 +176,17 @@ resource "aws_ecs_task_definition" "webhook" {
       image     = var.image
       essential = true
 
+      secrets = [
+        {
+          name      = "SCALR_TOKEN"
+          valueFrom = aws_secretsmanager_secret.scalr_agent_token.arn
+        }
+      ]
+
       environment = concat([
         {
           name  = "SCALR_URL"
           value = var.scalr_url
-        },
-        {
-          name  = "SCALR_TOKEN"
-          value = var.scalr_agent_token
         },
         {
           name  = "SCALR_SINGLE"

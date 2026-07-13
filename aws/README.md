@@ -8,7 +8,7 @@ Deploys a Scalr serverless agent pool on AWS using ECS Fargate for on-demand Ter
 Scalr.io Webhook
       |
       v
-API Gateway ── authenticates via x-api-key, restricts to Scalr IPs
+API Gateway (REST API) ── authenticates via x-api-key, restricts to Scalr IPs
       |
       v
 Lambda ── starts an ECS Fargate task
@@ -68,9 +68,10 @@ tofu init && tofu apply
 | Resource | Purpose |
 |---|---|
 | VPC + Subnets | Network isolation for ECS tasks |
-| API Gateway (REST) | Webhook endpoint with API key auth and IP restriction |
+| API Gateway (REST) | Webhook endpoint with API key auth and IP restriction. A REST API is required — HTTP APIs (API Gateway v2) do not support the resource policies used for Scalr IP restriction or API keys/usage plans |
 | Lambda Function | Lightweight trigger that starts ECS tasks |
 | ECS Cluster + Task Definition | Runs the Scalr agent container on Fargate |
+| Secrets Manager Secret | Stores the Scalr agent token, injected into the container as `SCALR_TOKEN` |
 | EFS File System + Access Points | Persistent Terraform provider & module cache |
 | Security Groups | Network access control for ECS and EFS |
 
@@ -78,6 +79,7 @@ tofu init && tofu apply
 
 - **API key authentication**: All webhook requests require an `x-api-key` header
 - **IP restrictions**: API Gateway resource policy restricts access to official Scalr.io IP addresses (fetched from `scalr.io/.well-known/allowlist.txt`). Disable with `allow_all_ingress = true` for testing
+- **Token storage**: The Scalr agent token is stored in AWS Secrets Manager (plaintext secret) and referenced by the task definition via `valueFrom` — it never appears as a plaintext environment variable in the task definition
 - **VPC isolation**: ECS tasks run in dedicated subnets with security groups
 - **EFS encryption**: Data at rest is encrypted by default
 
