@@ -6,17 +6,22 @@ Each webhook from Scalr spins up an ephemeral container that executes a single T
 
 ## Architecture
 
-```
-Scalr.io ── webhook ──> API Gateway ── auth ──> Ephemeral Container (scalr/agent)
-                                                       |
-                                                 Persistent Cache (providers & modules)
+```mermaid
+flowchart LR
+    scalr[Scalr.io] -- "webhook<br/>Idempotency-Key" --> gateway[API Gateway]
+    gateway -- "auth + dedupe" --> agent[Ephemeral container<br/>scalr/agent]
+    agent <--> cache[(Persistent cache<br/>providers and modules)]
+    agent -. "runs task, exits" .-> scalr
 ```
 
 1. Scalr needs to execute a Terraform run and sends a webhook to the configured endpoint
 2. The API gateway authenticates the request via API key
-3. An ephemeral container starts with the Scalr agent (`SCALR_SINGLE=true`)
-4. The agent connects to Scalr, executes the run, and exits
-5. Persistent storage caches Terraform providers and modules across runs
+3. The gateway dedupes the delivery on the `Idempotency-Key` header
+4. An ephemeral container starts with the Scalr agent (`SCALR_SINGLE=true`)
+5. The agent connects to Scalr, executes the run, and exits
+6. Persistent storage caches Terraform providers and modules across runs
+
+Scalr delivers each webhook at least once (up to 3 attempts, 15 s read timeout) with the agent task ID in the `Idempotency-Key` header. The endpoint must dedupe on that header so that retries do not start extra agent containers. Both modules do this: AWS passes the key to ECS `RunTask` as `clientToken`, Azure claims a blob per key before it starts the job.
 
 ## Platforms
 
@@ -25,6 +30,7 @@ Scalr.io ── webhook ──> API Gateway ── auth ──> Ephemeral Contai
 | **Webhook gateway** | API Gateway (REST API) + Lambda | API Management (Consumption) |
 | **Compute** | ECS Fargate | Container Apps Job |
 | **Cache storage** | EFS | Azure Files |
+| **Webhook dedupe** | ECS `RunTask` `clientToken` | Blob create-if-absent in the cache storage account |
 | **Cold start** | ~10-20s | ~5-15s |
 | **Docs** | [`aws/README.md`](aws/README.md) | [`azure/README.md`](azure/README.md) |
 

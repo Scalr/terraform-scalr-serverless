@@ -35,6 +35,14 @@ resource "azurerm_api_management_api_operation" "trigger" {
   url_template        = "/"
 }
 
+locals {
+  # Dedupe webhook deliveries on the Idempotency-Key header by claiming one
+  # blob per key (create-if-absent is atomic in Blob Storage). APIM Consumption
+  # has no built-in cache, so the storage account doubles as the key store.
+  dedupe_enabled = var.storage_account_name != "" && var.idempotency_container_name != ""
+  key_store_url  = "https://${var.storage_account_name}.blob.core.windows.net/${var.idempotency_container_name}/"
+}
+
 resource "azurerm_api_management_api_policy" "webhook" {
   api_name            = azurerm_api_management_api.webhook.name
   api_management_name = azurerm_api_management.this.name
@@ -44,7 +52,105 @@ resource "azurerm_api_management_api_policy" "webhook" {
     <policies>
       <inbound>
         <base />
-        <send-request mode="new" response-variable-name="job-response" timeout="30" ignore-error="false">
+        <set-variable name="idempotencyKey" value="@(context.Request.Headers.GetValueOrDefault("Idempotency-Key", "").Trim())" />
+        <set-variable name="keyClaimed" value="@(false)" />
+        <set-variable name="keyUrl" value="@("${local.key_store_url}" + System.Net.WebUtility.UrlEncode((string)context.Variables["idempotencyKey"]))" />
+        <choose>
+          <when condition="@(${local.dedupe_enabled} ? ((string)context.Variables["idempotencyKey"]).Length > 0 : false)">
+            <!-- Claim the key: succeeds only if no blob exists for it yet. -->
+            <send-request mode="new" response-variable-name="claimResponse" timeout="10" ignore-error="true">
+              <set-url>@((string)context.Variables["keyUrl"])</set-url>
+              <set-method>PUT</set-method>
+              <set-header name="x-ms-version" exists-action="override">
+                <value>2023-11-03</value>
+              </set-header>
+              <set-header name="x-ms-date" exists-action="override">
+                <value>@(DateTime.UtcNow.ToString("R"))</value>
+              </set-header>
+              <set-header name="x-ms-blob-type" exists-action="override">
+                <value>BlockBlob</value>
+              </set-header>
+              <set-header name="If-None-Match" exists-action="override">
+                <value>*</value>
+              </set-header>
+              <set-header name="Content-Type" exists-action="override">
+                <value>text/plain</value>
+              </set-header>
+              <set-body>@(DateTime.UtcNow.ToString("o"))</set-body>
+              <authentication-managed-identity resource="https://storage.azure.com/" />
+            </send-request>
+            <set-variable name="claimStatus" value="@{
+              var response = context.Variables.GetValueOrDefault<IResponse>("claimResponse");
+              return response == null ? 0 : response.StatusCode;
+            }" />
+            <choose>
+              <when condition="@((int)context.Variables["claimStatus"] == 201)">
+                <set-variable name="keyClaimed" value="@(true)" />
+              </when>
+              <when condition="@((int)context.Variables["claimStatus"] == 409 || (int)context.Variables["claimStatus"] == 412)">
+                <!-- The key is taken. Re-claim it only if the claim is older than the dedupe window. -->
+                <send-request mode="new" response-variable-name="reclaimResponse" timeout="10" ignore-error="true">
+                  <set-url>@((string)context.Variables["keyUrl"])</set-url>
+                  <set-method>PUT</set-method>
+                  <set-header name="x-ms-version" exists-action="override">
+                    <value>2023-11-03</value>
+                  </set-header>
+                  <set-header name="x-ms-date" exists-action="override">
+                    <value>@(DateTime.UtcNow.ToString("R"))</value>
+                  </set-header>
+                  <set-header name="x-ms-blob-type" exists-action="override">
+                    <value>BlockBlob</value>
+                  </set-header>
+                  <set-header name="If-Unmodified-Since" exists-action="override">
+                    <value>@(DateTime.UtcNow.AddMinutes(-${var.idempotency_window_minutes}).ToString("R"))</value>
+                  </set-header>
+                  <set-header name="Content-Type" exists-action="override">
+                    <value>text/plain</value>
+                  </set-header>
+                  <set-body>@(DateTime.UtcNow.ToString("o"))</set-body>
+                  <authentication-managed-identity resource="https://storage.azure.com/" />
+                </send-request>
+                <set-variable name="reclaimStatus" value="@{
+                  var response = context.Variables.GetValueOrDefault<IResponse>("reclaimResponse");
+                  return response == null ? 0 : response.StatusCode;
+                }" />
+                <choose>
+                  <when condition="@((int)context.Variables["reclaimStatus"] == 201)">
+                    <set-variable name="keyClaimed" value="@(true)" />
+                  </when>
+                  <otherwise>
+                    <!-- Duplicate delivery: a job for this key was already started. -->
+                    <return-response>
+                      <set-status code="200" reason="OK" />
+                      <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                      </set-header>
+                      <set-body>@(new JObject(
+                        new JProperty("status", "duplicate"),
+                        new JProperty("idempotencyKey", (string)context.Variables["idempotencyKey"])
+                      ).ToString())</set-body>
+                    </return-response>
+                  </otherwise>
+                </choose>
+              </when>
+              <otherwise>
+                <!-- Key store unavailable: fail so that Scalr retries. -->
+                <return-response>
+                  <set-status code="503" reason="Service Unavailable" />
+                  <set-header name="Content-Type" exists-action="override">
+                    <value>application/json</value>
+                  </set-header>
+                  <set-body>@(new JObject(
+                    new JProperty("status", "error"),
+                    new JProperty("message", "Could not claim the idempotency key"),
+                    new JProperty("keyStoreStatus", (int)context.Variables["claimStatus"])
+                  ).ToString())</set-body>
+                </return-response>
+              </otherwise>
+            </choose>
+          </when>
+        </choose>
+        <send-request mode="new" response-variable-name="jobResponse" timeout="30" ignore-error="true">
           <set-url>https://management.azure.com${azurerm_container_app_job.scalr_agent.id}/start?api-version=2024-03-01</set-url>
           <set-method>POST</set-method>
           <set-header name="Content-Type" exists-action="override">
@@ -53,7 +159,47 @@ resource "azurerm_api_management_api_policy" "webhook" {
           <set-body>{}</set-body>
           <authentication-managed-identity resource="https://management.azure.com/" />
         </send-request>
-        <return-response response-variable-name="job-response" />
+        <set-variable name="jobStatus" value="@{
+          var response = context.Variables.GetValueOrDefault<IResponse>("jobResponse");
+          return response == null ? 0 : response.StatusCode;
+        }" />
+        <choose>
+          <when condition="@((int)context.Variables["jobStatus"] / 100 == 2)">
+            <return-response response-variable-name="jobResponse" />
+          </when>
+          <otherwise>
+            <!-- The job did not start: release the key so that the retry can start it. -->
+            <choose>
+              <when condition="@((bool)context.Variables["keyClaimed"])">
+                <send-request mode="new" response-variable-name="releaseResponse" timeout="10" ignore-error="true">
+                  <set-url>@((string)context.Variables["keyUrl"])</set-url>
+                  <set-method>DELETE</set-method>
+                  <set-header name="x-ms-version" exists-action="override">
+                    <value>2023-11-03</value>
+                  </set-header>
+                  <set-header name="x-ms-date" exists-action="override">
+                    <value>@(DateTime.UtcNow.ToString("R"))</value>
+                  </set-header>
+                  <authentication-managed-identity resource="https://storage.azure.com/" />
+                </send-request>
+              </when>
+            </choose>
+            <choose>
+              <when condition="@((int)context.Variables["jobStatus"] == 0)">
+                <return-response>
+                  <set-status code="504" reason="Gateway Timeout" />
+                  <set-header name="Content-Type" exists-action="override">
+                    <value>application/json</value>
+                  </set-header>
+                  <set-body>{"status": "error", "message": "The Container Apps Job start request failed"}</set-body>
+                </return-response>
+              </when>
+              <otherwise>
+                <return-response response-variable-name="jobResponse" />
+              </otherwise>
+            </choose>
+          </otherwise>
+        </choose>
       </inbound>
     </policies>
   XML
@@ -69,6 +215,13 @@ resource "azurerm_api_management_subscription" "webhook" {
 resource "azurerm_role_assignment" "apim_job_contributor" {
   scope                = azurerm_container_app_job.scalr_agent.id
   role_definition_name = "Contributor"
+  principal_id         = azurerm_api_management.this.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "apim_idempotency_keys" {
+  count                = local.dedupe_enabled ? 1 : 0
+  scope                = var.idempotency_container_id
+  role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azurerm_api_management.this.identity[0].principal_id
 }
 

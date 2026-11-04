@@ -59,17 +59,18 @@ data "archive_file" "lambda_zip" {
 }
 
 resource "aws_lambda_function" "scalr_webhook" {
-  filename      = data.archive_file.lambda_zip.output_path
-  function_name = var.function_name
-  role          = aws_iam_role.lambda_execution_role.arn
-  handler       = var.handler
-  runtime       = var.runtime
-  timeout       = var.timeout
-  memory_size   = var.memory_size
+  filename         = data.archive_file.lambda_zip.output_path
+  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+  function_name    = var.function_name
+  role             = aws_iam_role.lambda_execution_role.arn
+  handler          = var.handler
+  runtime          = var.runtime
+  timeout          = var.timeout
+  memory_size      = var.memory_size
 
   environment {
     variables = {
-      SUBNET_IDS = join(",", var.subnet_ids)
+      SUBNET_IDS      = join(",", var.subnet_ids)
       CLUSTER         = var.cluster_name
       TASK_DEFINITION = var.task_definition_arn
       SECURITY_GROUP  = var.security_group_id

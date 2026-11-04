@@ -51,3 +51,9 @@ variable "max_parallel_runs" {
   type        = number
   default     = 10
 }
+
+variable "idempotency_window_minutes" {
+  description = "How long (minutes) a webhook Idempotency-Key blocks repeated deliveries from starting another job"
+  type        = number
+  default     = 60
+}

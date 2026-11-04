@@ -22,6 +22,20 @@ EFS ── persistent Terraform provider & module cache
 
 When Scalr triggers a run, the webhook hits API Gateway, which invokes a Lambda function. Lambda starts an ECS Fargate task running the Scalr agent. The agent connects to Scalr, executes the run, and exits. EFS provides persistent cache so subsequent runs skip provider/module downloads.
 
+### Webhook delivery and idempotency
+
+Scalr delivers each webhook at least once: up to 3 attempts with a 15 s read timeout, all carrying the same `Idempotency-Key` header (the agent task ID). The endpoint must dedupe on that header, otherwise every retry starts an idle agent container that you pay for.
+
+The Lambda function passes `Idempotency-Key` to ECS `RunTask` as `clientToken`. ECS remembers a client token for up to 24 hours per cluster and returns the original task for repeated calls, so one key starts at most one Fargate task. A delivery without the header always starts a task.
+
+The function answers:
+
+| Status | Meaning |
+|---|---|
+| `200` | A task was started, or a task for this key already exists |
+| `503` | ECS could not place the task (see `failures` in the body); Scalr retries |
+| `500` | The ECS API call failed; Scalr retries |
+
 ## Prerequisites
 
 - Terraform >= 1.0 or OpenTofu
@@ -78,6 +92,7 @@ tofu init && tofu apply
 ## Security
 
 - **API key authentication**: All webhook requests require an `x-api-key` header
+- **Idempotent delivery**: Repeated deliveries with the same `Idempotency-Key` start one task (ECS `clientToken`)
 - **IP restrictions**: API Gateway resource policy restricts access to official Scalr.io IP addresses (fetched from `scalr.io/.well-known/allowlist.txt`). Disable with `allow_all_ingress = true` for testing
 - **Token storage**: The Scalr agent token is stored in AWS Secrets Manager (plaintext secret) and referenced by the task definition via `valueFrom` — it never appears as a plaintext environment variable in the task definition
 - **VPC isolation**: ECS tasks run in dedicated subnets with security groups
@@ -104,9 +119,12 @@ WEBHOOK_URL=$(tofu output -raw webhook_url)
 API_KEY=$(tofu output -raw api_key)
 curl -s -X POST "$WEBHOOK_URL" \
   -H "x-api-key: $API_KEY" \
+  -H "Idempotency-Key: manual-$(date +%s)" \
   -H "Content-Type: application/json" \
   -d '{}'
 ```
+
+Send the same `Idempotency-Key` twice: the second call answers `200` but does not start a second task.
 
 ### Check ECS task status
 
@@ -140,5 +158,7 @@ curl -s https://scalr.io/.well-known/allowlist.txt
 | 403 on webhook | IP not in allowlist | Set `allow_all_ingress = true` for testing, or verify Scalr IPs |
 | 403 with valid API key | API key mismatch | Re-read key: `tofu output -raw api_key` |
 | Lambda timeout | ECS task takes too long to register | Increase `lambda_timeout` |
+| Webhook returns `200` but no new task starts | The `Idempotency-Key` was used within the last 24 hours | Expected: the task for that key already exists. Send a new key to start another task |
+| Lambda code unchanged after `tofu apply` | Old module version without `source_code_hash` | Re-apply this module version; the function is updated whenever `lambda_function.py` changes |
 | ECS task fails to start | Image pull error or resource limits | Check CloudWatch logs, verify image exists |
 | Slow first run | EFS + provider download | Subsequent runs use cached providers |

@@ -102,3 +102,21 @@ variable "max_parallel_runs" {
   type        = number
   default     = 10
 }
+
+variable "idempotency_container_name" {
+  description = "Blob container (in storage_account_name) used to dedupe webhook deliveries on Idempotency-Key. Empty disables dedupe."
+  type        = string
+  default     = ""
+}
+
+variable "idempotency_container_id" {
+  description = "Resource Manager ID of the idempotency container (role assignment scope)"
+  type        = string
+  default     = ""
+}
+
+variable "idempotency_window_minutes" {
+  description = "How long a claimed Idempotency-Key blocks repeated deliveries from starting another job"
+  type        = number
+  default     = 60
+}

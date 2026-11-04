@@ -18,3 +18,13 @@ output "providers_cache_share_name" {
   description = "Azure Files share for Terraform provider cache"
   value       = azurerm_storage_share.providers_cache.name
 }
+
+output "idempotency_container_name" {
+  description = "Blob container that stores webhook idempotency keys"
+  value       = azurerm_storage_container.idempotency_keys.name
+}
+
+output "idempotency_container_id" {
+  description = "Resource Manager ID of the idempotency keys container"
+  value       = azurerm_storage_container.idempotency_keys.id
+}
