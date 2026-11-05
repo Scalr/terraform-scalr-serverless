@@ -13,5 +13,3 @@ container_memory_gb   = 4
 
 job_timeout         = 3600
 max_parallel_runs   = 10
-
-idempotency_window_minutes = 60

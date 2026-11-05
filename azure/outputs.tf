@@ -34,8 +34,3 @@ output "resource_group_name" {
   description = "Azure resource group name"
   value       = module.resource_group.name
 }
-
-output "storage_account_name" {
-  description = "Storage account that holds the Terraform cache and the webhook idempotency keys"
-  value       = module.storage.storage_account_name
-}

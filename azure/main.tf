@@ -71,25 +71,22 @@ module "agent_pool" {
 module "webhook" {
   source = "./modules/webhook"
 
-  name                       = var.name_prefix
-  location                   = var.azure_location
-  resource_group_name        = module.resource_group.name
-  subnet_id                  = module.networking.subnet_id
-  container_image            = module.registry.image
-  registry_server            = module.registry.login_server
-  registry_username          = module.registry.admin_username
-  registry_password          = module.registry.admin_password
-  container_cpu              = var.container_cpu
-  container_memory_gb        = var.container_memory_gb
-  scalr_url                  = module.agent_pool.scalr_url
-  scalr_agent_token          = module.agent_pool.agent_token
+  name                = var.name_prefix
+  location            = var.azure_location
+  resource_group_name = module.resource_group.name
+  subnet_id           = module.networking.subnet_id
+  container_image     = module.registry.image
+  registry_server     = module.registry.login_server
+  registry_username   = module.registry.admin_username
+  registry_password   = module.registry.admin_password
+  container_cpu       = var.container_cpu
+  container_memory_gb = var.container_memory_gb
+  scalr_url           = module.agent_pool.scalr_url
+  scalr_agent_token   = module.agent_pool.agent_token
   storage_account_name       = module.storage.storage_account_name
   storage_account_key        = module.storage.storage_account_key
   terraform_cache_share_name = module.storage.terraform_cache_share_name
   providers_cache_share_name = module.storage.providers_cache_share_name
   job_timeout                = var.job_timeout
   max_parallel_runs          = var.max_parallel_runs
-  idempotency_container_name = module.storage.idempotency_container_name
-  idempotency_container_id   = module.storage.idempotency_container_id
-  idempotency_window_minutes = var.idempotency_window_minutes
 }
