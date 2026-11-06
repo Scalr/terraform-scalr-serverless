@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     scalr = {
-      source  = "scalr/scalr"
+      source = "scalr/scalr"
     }
   }
 }

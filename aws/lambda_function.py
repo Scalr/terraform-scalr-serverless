@@ -40,7 +40,7 @@ def client_token(idempotency_key, attempt):
     """Map an Idempotency-Key to a valid ECS clientToken for the given attempt."""
     if attempt == 0 and CLIENT_TOKEN_RE.match(idempotency_key):
         return idempotency_key
-    digest = hashlib.sha256(f"{idempotency_key}#{attempt}".encode("utf-8"))
+    digest = hashlib.sha256(f"{idempotency_key}#{attempt}".encode())
     return digest.hexdigest()
 
 
@@ -89,35 +89,62 @@ def lambda_handler(event, context):
             # deliveries). A task for this key already exists, so do not start
             # another one.
             existing = exc.response.get("resourceIds", [])
-            log(requestId=context.aws_request_id, idempotencyKey=idempotency_key,
-                status="duplicate", tasks=existing)
-            return response(200, {
-                "status": "duplicate",
-                "idempotencyKey": idempotency_key,
-                "tasks": existing,
-            })
-        except Exception as exc:  # noqa: BLE001 - any ECS error must yield a non-2xx
-            log(requestId=context.aws_request_id, idempotencyKey=idempotency_key,
-                status="error", error=str(exc))
+            log(
+                requestId=context.aws_request_id,
+                idempotencyKey=idempotency_key,
+                status="duplicate",
+                tasks=existing,
+            )
+            return response(
+                200,
+                {
+                    "status": "duplicate",
+                    "idempotencyKey": idempotency_key,
+                    "tasks": existing,
+                },
+            )
+        except Exception as exc:  # Any ECS error must return a non-2xx status.
+            log(
+                requestId=context.aws_request_id,
+                idempotencyKey=idempotency_key,
+                status="error",
+                error=str(exc),
+            )
             return response(500, {"status": "error", "message": str(exc)})
 
         tasks = [task["taskArn"] for task in result.get("tasks", [])]
         if tasks:
-            log(requestId=context.aws_request_id, idempotencyKey=idempotency_key,
-                status="started", attempt=attempt, tasks=tasks)
-            return response(200, {
-                "status": "started",
-                "idempotencyKey": idempotency_key or None,
-                "tasks": tasks,
-            })
+            log(
+                requestId=context.aws_request_id,
+                idempotencyKey=idempotency_key,
+                status="started",
+                attempt=attempt,
+                tasks=tasks,
+            )
+            return response(
+                200,
+                {
+                    "status": "started",
+                    "idempotencyKey": idempotency_key or None,
+                    "tasks": tasks,
+                },
+            )
 
         failures = result.get("failures", [])
-        log(requestId=context.aws_request_id, idempotencyKey=idempotency_key,
-            status="placement-failed", attempt=attempt, failures=failures)
+        log(
+            requestId=context.aws_request_id,
+            idempotencyKey=idempotency_key,
+            status="placement-failed",
+            attempt=attempt,
+            failures=failures,
+        )
 
     # Non-2xx so that Scalr retries the delivery.
-    return response(503, {
-        "status": "error",
-        "message": "ECS did not place the task",
-        "failures": failures,
-    })
+    return response(
+        503,
+        {
+            "status": "error",
+            "message": "ECS did not place the task",
+            "failures": failures,
+        },
+    )

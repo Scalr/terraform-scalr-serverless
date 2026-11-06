@@ -1,6 +1,6 @@
 variable "subnet_ids" {
   description = "List of subnet IDs for the Fargate task"
-  type = list(string)
+  type        = list(string)
 }
 
 variable "cluster_name" {

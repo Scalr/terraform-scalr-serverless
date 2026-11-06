@@ -1,8 +1,8 @@
 resource "aws_efs_file_system" "cache" {
   creation_token = "${var.name}-cache"
-  
-  performance_mode = "generalPurpose"
-  throughput_mode  = "provisioned"
+
+  performance_mode                = "generalPurpose"
+  throughput_mode                 = "provisioned"
   provisioned_throughput_in_mibps = var.provisioned_throughput
 
   tags = {
@@ -11,9 +11,9 @@ resource "aws_efs_file_system" "cache" {
 }
 
 resource "aws_efs_mount_target" "cache" {
-  count          = length(var.subnet_ids)
-  file_system_id = aws_efs_file_system.cache.id
-  subnet_id      = var.subnet_ids[count.index]
+  count           = length(var.subnet_ids)
+  file_system_id  = aws_efs_file_system.cache.id
+  subnet_id       = var.subnet_ids[count.index]
   security_groups = [aws_security_group.efs.id]
 }
 
@@ -43,17 +43,17 @@ resource "aws_security_group" "efs" {
 
 resource "aws_efs_access_point" "terraform_cache" {
   file_system_id = aws_efs_file_system.cache.id
-  
+
   root_directory {
     path = "/terraform-cache"
-    
+
     creation_info {
       owner_gid   = 0
       owner_uid   = 0
       permissions = "755"
     }
   }
-  
+
   posix_user {
     gid = 0
     uid = 0
@@ -66,17 +66,17 @@ resource "aws_efs_access_point" "terraform_cache" {
 
 resource "aws_efs_access_point" "providers_cache" {
   file_system_id = aws_efs_file_system.cache.id
-  
+
   root_directory {
     path = "/providers-cache"
-    
+
     creation_info {
       owner_gid   = 0
       owner_uid   = 0
       permissions = "755"
     }
   }
-  
+
   posix_user {
     gid = 0
     uid = 0
@@ -85,4 +85,4 @@ resource "aws_efs_access_point" "providers_cache" {
   tags = {
     Name = "${var.name}-providers-cache"
   }
-} 
+}

@@ -13,9 +13,9 @@ resource "aws_security_group" "ecs_tasks" {
   }
 
   egress {
-    from_port = 0
-    to_port   = 0
-    protocol  = "-1"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
@@ -110,7 +110,7 @@ resource "aws_iam_role_policy" "ecs_task_role_policy" {
         ]
         Resource = "${aws_cloudwatch_log_group.ecs_logs.arn}:*"
       }
-    ], var.efs_file_system_id != null ? [
+      ], var.efs_file_system_id != null ? [
       {
         Effect = "Allow"
         Action = [
@@ -130,19 +130,19 @@ resource "aws_ecs_cluster" "main" {
 
 
 resource "aws_ecs_task_definition" "webhook" {
-  family             = var.task_name
-  network_mode       = "awsvpc"
+  family                   = var.task_name
+  network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                = var.limit_cpu
-  memory             = var.limit_memory
-  execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn      = aws_iam_role.ecs_task_role.arn
+  cpu                      = var.limit_cpu
+  memory                   = var.limit_memory
+  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   dynamic "volume" {
     for_each = var.efs_file_system_id != null ? [1] : []
     content {
       name = "terraform-cache"
-      
+
       efs_volume_configuration {
         file_system_id     = var.efs_file_system_id
         root_directory     = "/"
@@ -158,7 +158,7 @@ resource "aws_ecs_task_definition" "webhook" {
     for_each = var.efs_file_system_id != null ? [1] : []
     content {
       name = "providers-cache"
-      
+
       efs_volume_configuration {
         file_system_id     = var.efs_file_system_id
         root_directory     = "/"
@@ -198,9 +198,9 @@ resource "aws_ecs_task_definition" "webhook" {
         },
         {
           name  = "SCALR_AGENT_TIMEOUT"
-          value = tostring(var.task_stop_timeout - 30)  # Leave buffer for graceful shutdown
+          value = tostring(var.task_stop_timeout - 30) # Leave buffer for graceful shutdown
         }
-      ], var.efs_file_system_id != null ? [
+        ], var.efs_file_system_id != null ? [
         {
           name  = "TF_PLUGIN_CACHE_DIR"
           value = "/terraform-cache"
