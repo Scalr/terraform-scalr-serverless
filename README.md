@@ -66,8 +66,9 @@ COPY providers/ /terraform-cache/
 
 1. Fork the repository.
 2. Create a feature branch.
-3. Test your changes.
-4. Open a pull request.
+3. Install [uv](https://docs.astral.sh/uv/), [just](https://just.systems/), [OpenTofu](https://opentofu.org/), and [lychee](https://lychee.cli.rs/), then run `just setup`. The command installs the Python tools and a git hook that runs the checks on each commit.
+4. Run `just lint` and `just validate` to check your changes. CI runs the same checks.
+5. Open a pull request.
 
 ## License
 

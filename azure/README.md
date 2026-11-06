@@ -34,7 +34,7 @@ Deduplication would need an extra state store such as Azure Cache for Redis, whi
 ## Prerequisites
 
 - Terraform 1.0 or later, or OpenTofu.
-- The Azure CLI, signed in with `az login`, or another [azurerm authentication method](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs#authenticating-to-azure).
+- The Azure CLI, signed in with `az login`, or another [azurerm authentication method](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs).
 - A Scalr account and an API token. The Scalr provider reads them from the `SCALR_HOSTNAME` and `SCALR_TOKEN` environment variables.
 
 ## Quick start
