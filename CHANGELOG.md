@@ -9,7 +9,7 @@ Each entry names the platform it affects. A breaking entry says what to do befor
 ### Breaking
 
 - **AWS:** the `lambda_runtime` variable accepts only `python3.11` or later. If you set an older runtime, change it before you apply.
-- **AWS:** the configuration requires AWS provider 5.32 or later, below 6.0. Run `tofu init -upgrade` if your lock file pins an older provider.
+- **AWS:** the configuration requires AWS provider 5.76 or later, below 6.0. Run `tofu init -upgrade` if your lock file pins an older provider.
 - **AWS:** the Lambda function writes JSON logs. Update CloudWatch metric filters, subscription filters, or log queries that match the old text output.
 - **AWS:** the webhook returns the status codes of the [manual setup guide](https://docs.scalr.io/docs/serverless-aws-fargate): `202` with the `taskArn` when ECS accepts the launch, `400` without an `Idempotency-Key` header, and `502` when the ECS request or the launch fails. A request without the header no longer starts a task.
 - **AWS and Azure:** agent containers write JSON logs (`SCALR_AGENT_LOG_FORMAT=json`). Update log queries that match the old text output.

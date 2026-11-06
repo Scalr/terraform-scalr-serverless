@@ -69,10 +69,11 @@ resource "aws_lambda_function" "scalr_webhook" {
   memory_size      = var.memory_size
 
   # JSON logs carry the handler's structured fields and the Lambda request ID.
+  # INFO keeps the platform REPORT records with duration and timeout status.
   logging_config {
     log_format            = "JSON"
     application_log_level = "INFO"
-    system_log_level      = "WARN"
+    system_log_level      = "INFO"
   }
 
   environment {

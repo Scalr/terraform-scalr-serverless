@@ -24,7 +24,7 @@ ECS: ECSClient = boto3.client(
 )
 
 
-class ApiGatewayProxyEvent(TypedDict):
+class ApiGatewayProxyEvent(TypedDict, total=False):
     """The part of an API Gateway REST proxy event that the handler reads."""
 
     headers: dict[str, str] | None
@@ -55,7 +55,7 @@ def respond(status_code: int, body: TaskRequested | WebhookError) -> ApiGatewayP
 def lambda_handler(event: ApiGatewayProxyEvent, _context: object) -> ApiGatewayProxyResponse:
     """Request one ECS task per Idempotency-Key and return 202 once ECS accepts the launch."""
     # Header names are case-insensitive, and API Gateway keeps the sender's casing.
-    headers = {name.lower(): value for name, value in (event["headers"] or {}).items()}
+    headers = {name.lower(): value for name, value in (event.get("headers") or {}).items()}
     idempotency_key = headers.get("idempotency-key")
     if not idempotency_key:
         LOG.warning("Rejected webhook without Idempotency-Key")

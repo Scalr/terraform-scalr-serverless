@@ -33,8 +33,6 @@ flowchart LR
 4. The agent connects to Scalr, executes the run, and exits.
 5. The persistent cache keeps Terraform providers and modules between runs.
 
-Scalr delivers each webhook at least once: up to 3 attempts with a 15 s read timeout, all with the agent task ID in the `Idempotency-Key` header. An endpoint that deduplicates on that header starts one container per task even when Scalr retries. The AWS module deduplicates by passing the key to ECS `RunTask` as `clientToken`. The Azure module does not: Container Apps Jobs have no idempotency token and API Management Consumption has no cache, so a retried delivery can start a second container that finds no task and exits. The platform guides describe both behaviors.
-
 ## Platforms
 
 | | AWS | Azure |

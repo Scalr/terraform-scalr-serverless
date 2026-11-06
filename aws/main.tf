@@ -2,8 +2,8 @@ terraform {
   required_providers {
     aws = {
       source = "hashicorp/aws"
-      # logging_config on aws_lambda_function needs 5.32.0 or later.
-      version = "~> 5.32"
+      # The python3.13 Lambda runtime needs 5.76.0 or later.
+      version = "~> 5.76"
     }
     scalr = {
       source = "scalr/scalr"

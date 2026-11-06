@@ -26,6 +26,18 @@ variables {
   lambda_invoke_arn      = "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:123456789012:function:scalr-agent/invocations"
   lambda_function_name   = "scalr-agent"
   additional_allowed_ips = ["192.0.2.1/32"]
+
+  # Inputs of the Lambda module runs.
+  function_name       = "scalr-agent"
+  cluster_name        = "scalr-agent-pool-cluster"
+  task_definition_arn = "arn:aws:ecs:us-east-1:123456789012:task-definition/scalr-agent-run:1"
+  security_group_id   = "sg-0123456789abcdef0"
+  subnet_ids          = ["subnet-a", "subnet-b"]
+  source_file         = "lambda_function.py"
+  handler             = "lambda_function.lambda_handler"
+  runtime             = "python3.13"
+  timeout             = 30
+  memory_size         = 128
 }
 
 run "scalr_allowlist_is_parsed_into_cidrs" {
@@ -88,18 +100,6 @@ run "lambda_targets_the_agent_task" {
     source = "./modules/lambda"
   }
 
-  variables {
-    function_name       = "scalr-agent"
-    cluster_name        = "scalr-agent-pool-cluster"
-    task_definition_arn = "arn:aws:ecs:us-east-1:123456789012:task-definition/scalr-agent-run:1"
-    security_group_id   = "sg-0123456789abcdef0"
-    subnet_ids          = ["subnet-a", "subnet-b"]
-    source_file         = "lambda_function.py"
-    handler             = "lambda_function.lambda_handler"
-    runtime             = "python3.11"
-    timeout             = 30
-    memory_size         = 128
-  }
 
   assert {
     condition = aws_lambda_function.scalr_webhook.environment[0].variables == tomap({
@@ -125,16 +125,7 @@ run "lambda_rejects_runtimes_before_python_3_11" {
   }
 
   variables {
-    function_name       = "scalr-agent"
-    cluster_name        = "scalr-agent-pool-cluster"
-    task_definition_arn = "arn:aws:ecs:us-east-1:123456789012:task-definition/scalr-agent-run:1"
-    security_group_id   = "sg-0123456789abcdef0"
-    subnet_ids          = ["subnet-a", "subnet-b"]
-    source_file         = "lambda_function.py"
-    handler             = "lambda_function.lambda_handler"
-    runtime             = "python3.10"
-    timeout             = 30
-    memory_size         = 128
+    runtime = "python3.10"
   }
 
   expect_failures = [var.runtime]
