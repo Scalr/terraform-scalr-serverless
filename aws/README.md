@@ -32,8 +32,10 @@ The function returns:
 | Status | Meaning |
 |---|---|
 | `200` | The function started a task, or a task for this key already exists |
-| `503` | ECS could not place the task. The body lists the ECS `failures`. Scalr retries |
-| `500` | The ECS API call failed. Scalr retries |
+| `503` | ECS could not place the task. The body lists the ECS `failures` |
+| `502` | The ECS API call failed. API Gateway returns this status when the function raises an error. Scalr retries |
+
+ECS also remembers a placement failure for the client token. A retry with the same `Idempotency-Key` returns the same `503` without a new placement attempt.
 
 ## Prerequisites
 
@@ -143,8 +145,11 @@ aws logs filter-log-events --log-group-name /ecs/scalr-agent-pool-cluster
 
 ### Check Lambda invocations
 
+The function writes JSON logs. Each record of a webhook delivery has the `idempotency_key` field, so you can find the records for one Scalr agent task:
+
 ```bash
-aws logs filter-log-events --log-group-name /aws/lambda/scalr-agent
+aws logs filter-log-events --log-group-name /aws/lambda/scalr-agent \
+  --filter-pattern '{ $.idempotency_key = "<agent-task-id>" }'
 ```
 
 ### View Scalr IP allowlist

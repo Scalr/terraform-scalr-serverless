@@ -68,6 +68,13 @@ resource "aws_lambda_function" "scalr_webhook" {
   timeout          = var.timeout
   memory_size      = var.memory_size
 
+  # JSON logs carry the handler's structured fields and the Lambda request ID.
+  logging_config {
+    log_format            = "JSON"
+    application_log_level = "INFO"
+    system_log_level      = "WARN"
+  }
+
   environment {
     variables = {
       SUBNET_IDS      = join(",", var.subnet_ids)
