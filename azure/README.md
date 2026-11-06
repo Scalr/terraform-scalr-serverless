@@ -1,52 +1,54 @@
 # Azure Serverless Agent Pool
 
-Deploys a Scalr serverless agent pool on Azure using Container Apps Jobs for fast, on-demand Terraform/OpenTofu runs.
+Deploys a Scalr serverless agent pool on Azure. Each Terraform or OpenTofu run executes in its own Container Apps Job execution.
+
+Product documentation: [Serverless agent pools](https://docs.scalr.io/docs/serverless-agents-pools).
 
 ## Architecture
 
-```
-Scalr.io Webhook
-      |
-      v
-API Management (Consumption) ── authenticates via subscription key
-      |
-      v
-Azure Container Apps Job ── runs scalr/agent with SCALR_SINGLE=true
-      |
-      v
-Azure Files ── persistent Terraform provider & module cache
+The diagram shows the path of one run request. Each solid arrow is a synchronous call; the dotted arrow is the agent reporting to Scalr during the run.
+
+```mermaid
+flowchart TB
+    accTitle: Azure serverless agent pool request flow
+    accDescr: Scalr sends a webhook to API Management. API Management checks the subscription key, then starts a Container Apps Job execution through its managed identity. The execution runs the Scalr agent, which mounts the Azure Files cache and executes the run.
+    scalr[Scalr] -- "sends webhook" --> apim[API Management, Consumption<br/>checks Ocp-Apim-Subscription-Key]
+    apim -- "starts execution with managed identity" --> job[Container Apps Job execution<br/>scalr/agent, SCALR_SINGLE=true]
+    job -- "mounts" --> files[(Azure Files<br/>provider and module cache)]
+    job -. "executes the run" .-> scalr
 ```
 
-When Scalr triggers a run, the webhook hits APIM, which starts a Container Apps Job execution via managed identity. The agent container starts in ~5-15 seconds, connects to Scalr, executes the run, and exits. Azure Files provides persistent cache so subsequent runs skip provider/module downloads.
+API Management (APIM) authenticates the webhook and starts a Container Apps Job execution through its managed identity. The agent container starts in 5 to 15 seconds, connects to Scalr, executes the run, and exits. The Azure Files shares keep providers and modules between runs, so later runs skip those downloads.
 
 ### Webhook delivery and idempotency
 
-Scalr delivers each webhook at least once: up to 3 attempts with a 15 s read timeout, all carrying the same `Idempotency-Key` header (the agent task ID). An endpoint should dedupe on that header so that a retry does not start a second agent container for the same task.
+Scalr delivers each webhook at least once: up to 3 attempts with a 15 s read timeout, all with the same `Idempotency-Key` header (the agent task ID). An endpoint that deduplicates on that header starts one container per task even when Scalr retries.
 
-**This module does not dedupe.** Azure has no native support for it:
+**This module does not deduplicate.** Azure has no native support for it:
 
-- The Container Apps Job `start` API has no idempotency token (unlike ECS `RunTask` `clientToken` on AWS).
-- API Management Consumption, the tier this module uses, has no built-in cache for the policy to remember seen keys.
+- The Container Apps Job `start` API has no idempotency token. ECS `RunTask` on AWS has `clientToken`.
+- The APIM Consumption tier has no built-in cache, so the policy cannot remember the keys it has seen.
 
-Deduping would need an extra state store such as Azure Cache for Redis, which costs more than the rest of this setup. The policy starts one job execution per delivery it receives and returns the Container Apps answer as is, so a failed start gets a non-2xx response and Scalr retries it. Retries only happen when the job start takes longer than 15 s, which is rare; when they do, the extra execution starts an agent that finds no task and exits.
+Deduplication would need an extra state store such as Azure Cache for Redis, which costs more than the rest of this deployment. The policy starts one job execution per delivery and returns the Container Apps response unchanged, so a failed start returns a non-2xx status and Scalr retries. Scalr retries only when the job start takes longer than 15 s. In that case the extra execution starts an agent that finds no task and exits.
 
 ## Prerequisites
 
-- Terraform >= 1.0 or OpenTofu
-- Azure CLI logged in (`az login`) or another [authentication method](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs#authenticating-to-azure) configured
-- Scalr account with API access (`SCALR_HOSTNAME` and `SCALR_TOKEN` environment variables)
+- Terraform 1.0 or later, or OpenTofu.
+- The Azure CLI, signed in with `az login`, or another [azurerm authentication method](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs#authenticating-to-azure).
+- A Scalr account and an API token. The Scalr provider reads them from the `SCALR_HOSTNAME` and `SCALR_TOKEN` environment variables.
 
-## Quick Start
+## Quick start
 
-```bash
-cd azure
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars to match your environment
-tofu init
-tofu apply
-```
+1. Copy the example variables and edit them for your environment:
 
-The first deploy takes ~10-15 minutes (APIM provisioning). Subsequent applies are fast.
+   ```bash
+   cd azure
+   cp terraform.tfvars.example terraform.tfvars
+   ```
+
+2. Run `tofu init`, then `tofu apply`. The apply creates the Azure resources and the Scalr agent pool, and registers the webhook endpoint with Scalr.
+
+The first apply takes 10 to 15 minutes because APIM provisioning is slow. Later applies take a few minutes.
 
 ## Configuration
 
@@ -59,42 +61,42 @@ The first deploy takes ~10-15 minutes (APIM provisioning). Subsequent applies ar
 | `container_image` | Agent container image | `scalr/agent:latest` |
 | `container_cpu` | CPU cores per job execution | `2` |
 | `container_memory_gb` | Memory (GB) per job execution | `4` |
-| `job_timeout` | Max run time per job (seconds) | `3600` |
-| `max_parallel_runs` | Max concurrent job executions | `10` |
+| `job_timeout` | Seconds a job execution can run before Container Apps stops it | `3600` |
+| `max_parallel_runs` | Maximum number of concurrent job executions | `10` |
 
 ## Outputs
 
 | Output | Description |
 |---|---|
-| `webhook_url` | APIM endpoint URL (passed to Scalr automatically) |
+| `webhook_url` | APIM endpoint URL. The module registers it with the Scalr agent pool |
 | `api_key` | APIM subscription key (sensitive) |
 | `agent_pool_id` | Scalr agent pool ID |
 | `container_app_job` | Container Apps Job name |
 | `resource_group_name` | Azure resource group name |
 
-## What Gets Created
+## What gets created
 
 | Resource | Purpose |
 |---|---|
-| Resource Group | Contains all resources |
-| VNet + Subnet | Network isolation for Container Apps (with NSG) |
-| Container Apps Environment | Hosting environment for jobs |
+| Resource group | Holds every resource of the deployment |
+| Virtual network and subnet | Network for the Container Apps environment, with a network security group |
+| Container Apps environment | Hosts the job |
 | Container Apps Job | Runs the Scalr agent on demand |
-| API Management (Consumption) | Webhook endpoint with API key auth |
+| API Management (Consumption) | Webhook endpoint with subscription key authentication |
 | Container Registry (Basic) | Mirrors the agent image from Docker Hub |
-| Storage Account + File Shares | Persistent Terraform provider & module cache |
+| Storage account and file shares | Persistent Terraform provider and module cache |
 
-## Cost Estimate
+## Cost estimate
 
-For typical usage (1,000-2,000 runs/month):
+Estimated monthly cost for 1,000 to 2,000 runs per month:
 
 | Resource | Cost |
 |---|---|
-| API Management (Consumption) | Free (first 1M calls/month included) |
-| Container Apps Job | ~$0.000012/vCPU-sec, ~$0.000002/GiB-sec (pay per execution) |
-| Container Registry (Basic) | ~$5/month |
-| Storage Account (50 GB LRS) | ~$1/month |
-| **Total** | **~$10-20/month** depending on run duration |
+| API Management (Consumption) | Free for the first 1 million calls per month |
+| Container Apps Job | About $0.000012 per vCPU-second and $0.000002 per GiB-second while executions run |
+| Container Registry (Basic) | About $5 |
+| Storage account (50 GB LRS) | About $1 |
+| **Total** | **$10 to $20**, depending on run duration |
 
 Container Apps Jobs have a free grant of 180,000 vCPU-seconds and 360,000 GiB-seconds per subscription per month.
 
@@ -126,7 +128,7 @@ curl -s -X POST "$WEBHOOK_URL" \
   -H "Content-Type: application/json" -d '{}'
 ```
 
-A successful response returns HTTP 200 with the job execution ID.
+A successful request returns HTTP `200` with the job execution ID. Each request starts a new execution; the module does not deduplicate on `Idempotency-Key`.
 
 ### Stop a running execution
 
@@ -135,20 +137,20 @@ az rest --method POST --uri \
   "https://management.azure.com/subscriptions/{sub_id}/resourceGroups/scalr-serverless-rg/providers/Microsoft.App/jobs/scalr-agent-agent/executions/{execution_name}/stop?api-version=2024-03-01"
 ```
 
-### Common Issues
+### Common issues
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `MissingSubscriptionRegistration` | `Microsoft.App` not registered | Handled automatically by the provider (`resource_provider_registrations = "extended"`). If using a restricted service principal, register manually: `az provider register --namespace Microsoft.App` |
-| 401 on webhook | API key mismatch | Re-read key: `tofu output -raw api_key` |
-| Job starts but agent doesn't pick up run | Token mismatch or Scalr URL wrong | Check `SCALR_URL` and `SCALR_TOKEN` env vars in the job |
-| Slow first webhook call (~5s) | APIM Consumption cold start | Normal on first call after idle period |
-| Extra job execution that exits without a run | Scalr retried a delivery whose job start took over 15 s | Expected; the module does not dedupe on `Idempotency-Key` (see Webhook delivery and idempotency) |
+| `MissingSubscriptionRegistration` | The `Microsoft.App` resource provider is not registered | The azurerm provider registers it (`resource_provider_registrations = "extended"`). With a restricted service principal, register it yourself: `az provider register --namespace Microsoft.App` |
+| `401` on the webhook | The subscription key does not match the deployed one | Read the key again: `tofu output -raw api_key` |
+| The job starts but the agent picks up no run | Wrong agent token or Scalr URL | Check the `SCALR_URL` and `SCALR_TOKEN` environment variables of the job |
+| Slow first webhook call, about 5 s | APIM Consumption cold start | Expected after an idle period |
+| Extra job execution that exits without a run | Scalr retried a delivery whose job start took longer than 15 s | Expected. See Webhook delivery and idempotency |
 
 ## Security
 
-- **Webhook auth**: APIM subscription key in `Ocp-Apim-Subscription-Key` header (no secrets in URLs)
-- **ARM API access**: APIM uses system-assigned managed identity to start jobs (scoped to the job resource only)
-- **Registry**: ACR with admin credentials (Basic SKU); images pulled over Azure's internal network
-- **Storage**: TLS 1.2 enforced, blob public access disabled, soft-delete enabled
-- **Network**: Container Apps subnet with NSG, delegated to `Microsoft.App/environments`
+- **Webhook authentication**: every request needs the APIM subscription key in the `Ocp-Apim-Subscription-Key` header. The URL carries no secret.
+- **Job start**: APIM starts executions with its system-assigned managed identity, which has the Contributor role on the job resource only.
+- **Registry**: the Container Registry (Basic) uses admin credentials. The job pulls images over the Azure network.
+- **Storage**: the storage account requires TLS 1.2, disables public blob access, and enables soft delete.
+- **Network**: the Container Apps subnet has a network security group and is delegated to `Microsoft.App/environments`.
