@@ -4,7 +4,7 @@
 # AWS Configuration
 aws_region = "us-east-1"
 
-# Network Configuration  
+# Network Configuration
 vpc_name = "scalr-agent"
 
 # API Gateway Configuration

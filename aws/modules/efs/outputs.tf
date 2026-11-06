@@ -16,4 +16,4 @@ output "providers_cache_access_point_id" {
 output "security_group_id" {
   description = "Security group ID for EFS"
   value       = aws_security_group.efs.id
-} 
+}

@@ -19,7 +19,7 @@ resource "aws_api_gateway_rest_api" "scalr_webhook" {
 # Resource policy to restrict access by IP
 data "aws_iam_policy_document" "scalr_api_policy" {
   count = length(local.allowed_ips) > 0 ? 1 : 0
-  
+
   statement {
     effect = "Allow"
 
@@ -37,7 +37,7 @@ data "aws_iam_policy_document" "scalr_api_policy" {
       values   = local.allowed_ips
     }
   }
-  
+
   # Explicit deny for all other IPs (not in the allowed list)
   statement {
     effect = "Deny"

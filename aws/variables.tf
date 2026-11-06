@@ -71,8 +71,8 @@ variable "lambda_handler" {
 
 variable "lambda_runtime" {
   type        = string
-  description = "Lambda handler runtime"
-  default     = "python3.11"
+  description = "Lambda Python runtime, python3.11 or later"
+  default     = "python3.13"
 }
 
 variable "lambda_timeout" {
@@ -88,9 +88,9 @@ variable "lambda_memory_size" {
 }
 
 variable "vpc_name" {
-  type = string
+  type        = string
   description = "VPC Network name"
-  default = "scalr-agent"
+  default     = "scalr-agent"
 }
 
 variable "ecs_task_stop_timeout" {

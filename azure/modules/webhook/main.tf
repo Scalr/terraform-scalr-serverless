@@ -156,18 +156,23 @@ resource "azurerm_container_app_job" "scalr_agent" {
       }
 
       env {
-        name        = "SCALR_TOKEN"
+        name        = "SCALR_AGENT_TOKEN"
         secret_name = "scalr-token"
       }
 
       env {
-        name  = "SCALR_SINGLE"
+        name  = "SCALR_AGENT_SINGLE"
         value = "true"
       }
 
       env {
-        name  = "SCALR_DRIVER"
+        name  = "SCALR_AGENT_DRIVER"
         value = "local"
+      }
+
+      env {
+        name  = "SCALR_AGENT_LOG_FORMAT"
+        value = "json"
       }
 
       dynamic "env" {

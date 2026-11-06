@@ -1,0 +1,50 @@
+# Git hooks, run with prek (https://prek.j178.dev). Compatible with pre-commit.
+# Install once: uv sync && uv run prek install
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: detect-private-key
+
+  # Ruff and ty come from uv.lock, so hooks and editors use the same versions.
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --frozen ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --frozen ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+      - id: ty
+        name: ty check
+        entry: uv run --frozen ty check
+        language: system
+        types_or: [python, pyi]
+        pass_filenames: false
+      - id: uv-lock
+        name: uv lock --check
+        entry: uv lock --check
+        language: system
+        files: ^(pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+      # OpenTofu and Terraform use the same formatting; use whichever is installed.
+      - id: tofu-fmt
+        name: tofu fmt
+        entry: sh -c 'if command -v tofu >/dev/null; then tofu fmt "$@"; else terraform fmt "$@"; fi' --
+        language: system
+        files: \.(tf|tfvars)$
+      - id: lychee
+        name: lychee (offline)
+        entry: lychee --offline --include-fragments
+        language: system
+        types: [markdown]
