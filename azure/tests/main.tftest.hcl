@@ -35,7 +35,7 @@ run "webhook_starts_a_single_run_agent" {
   assert {
     condition = anytrue([
       for env in azurerm_container_app_job.scalr_agent.template[0].container[0].env :
-      env.name == "SCALR_SINGLE" && env.value == "true"
+      env.name == "SCALR_AGENT_SINGLE" && env.value == "true"
     ])
     error_message = "The agent must run in single-run mode."
   }

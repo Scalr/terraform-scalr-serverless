@@ -72,7 +72,7 @@ variable "lambda_handler" {
 variable "lambda_runtime" {
   type        = string
   description = "Lambda Python runtime, python3.11 or later"
-  default     = "python3.11"
+  default     = "python3.13"
 
   # The handler uses typing features from Python 3.11.
   validation {

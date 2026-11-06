@@ -9,18 +9,26 @@ Each entry names the platform it affects. A breaking entry says what to do befor
 ### Breaking
 
 - **AWS:** the `lambda_runtime` variable accepts only `python3.11` or later. If you set an older runtime, change it before you apply.
-- **AWS:** the Lambda function requires AWS provider 5.32.0 or later. Run `tofu init -upgrade` if your lock file pins an older provider.
+- **AWS:** the configuration requires AWS provider 5.32 or later, below 6.0. Run `tofu init -upgrade` if your lock file pins an older provider.
 - **AWS:** the Lambda function writes JSON logs. Update CloudWatch metric filters, subscription filters, or log queries that match the old text output.
-- **AWS:** an ECS API error now returns HTTP `502` from API Gateway instead of `500` with the error text. Scalr retries either status.
+- **AWS:** the webhook returns the status codes of the [manual setup guide](https://docs.scalr.io/docs/serverless-aws-fargate): `202` with the `taskArn` when ECS accepts the launch, `400` without an `Idempotency-Key` header, and `502` when the ECS request or the launch fails. A request without the header no longer starts a task.
+- **AWS and Azure:** agent containers write JSON logs (`SCALR_AGENT_LOG_FORMAT=json`). Update log queries that match the old text output.
 
 ### Added
 
-- **AWS:** the Lambda function passes the webhook `Idempotency-Key` header to ECS `RunTask` as `clientToken`. Webhook retries for the same agent task no longer start extra Fargate tasks.
+- **AWS:** the Lambda function passes the SHA-256 hash of the webhook `Idempotency-Key` header to ECS `RunTask` as `clientToken`. Webhook retries for the same agent task no longer start extra Fargate tasks.
+
+### Changed
+
+- **AWS and Azure:** agent containers use `SCALR_AGENT_TOKEN`, `SCALR_AGENT_SINGLE`, and `SCALR_AGENT_DRIVER`. The agent deprecates the `SCALR_`-prefixed names and removes them in agent 2.0.0. `SCALR_URL` keeps its name because the agent reads only that name.
+- **AWS:** the default `lambda_runtime` is `python3.13`.
+- **AWS:** the agent task no longer sets `SCALR_AGENT_TIMEOUT`. The agent has no such option, so the variable had no effect. `ecs_task_stop_timeout` still sets the ECS stop timeout.
 
 ### Fixed
 
 - **AWS:** `tofu apply` deploys changes to the Lambda function code. Before this fix, the function kept the code from its first deployment.
-- **AWS:** a webhook returns `503` when ECS cannot place the task. Before this fix, it returned `200` and Scalr did not retry.
+- **AWS:** a webhook returns `502` when ECS cannot launch the task. Before this fix, it returned `200` and Scalr did not retry.
+- **AWS:** the ECS request uses one attempt with a 5-second read timeout, so the webhook responds within Scalr's 15-second timeout.
 - **AWS:** the Lambda function no longer logs the request headers, which included the API key.
 
 ### Documentation

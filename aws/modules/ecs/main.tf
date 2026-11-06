@@ -52,7 +52,7 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
 }
 
 # The agent token is stored as a plaintext secret (raw string, not JSON) so ECS
-# injects it verbatim as SCALR_TOKEN.
+# injects it verbatim as SCALR_AGENT_TOKEN.
 resource "aws_secretsmanager_secret" "scalr_agent_token" {
   name_prefix = "${var.task_name}-token-"
 }
@@ -178,7 +178,7 @@ resource "aws_ecs_task_definition" "webhook" {
 
       secrets = [
         {
-          name      = "SCALR_TOKEN"
+          name      = "SCALR_AGENT_TOKEN"
           valueFrom = aws_secretsmanager_secret.scalr_agent_token.arn
         }
       ]
@@ -189,16 +189,16 @@ resource "aws_ecs_task_definition" "webhook" {
           value = var.scalr_url
         },
         {
-          name  = "SCALR_SINGLE"
+          name  = "SCALR_AGENT_SINGLE"
           value = "true"
         },
         {
-          name  = "SCALR_DRIVER"
+          name  = "SCALR_AGENT_DRIVER"
           value = "local"
         },
         {
-          name  = "SCALR_AGENT_TIMEOUT"
-          value = tostring(var.task_stop_timeout - 30) # Leave buffer for graceful shutdown
+          name  = "SCALR_AGENT_LOG_FORMAT"
+          value = "json"
         }
         ], var.efs_file_system_id != null ? [
         {

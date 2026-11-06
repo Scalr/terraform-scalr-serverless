@@ -25,18 +25,18 @@ flowchart LR
     job -. "connects back" .-> scalr
 ```
 
-API Management (APIM) authenticates each webhook using the subscription key in the `Ocp-Apim-Subscription-Key` header. It uses its managed identity to start a Container Apps Job execution. The agent container runs in single-run mode (`SCALR_SINGLE=true`). It starts in 5 to 15 seconds, connects to Scalr, executes the run, and exits. The Azure Files shares keep providers and modules between runs, so later runs skip those downloads.
+API Management (APIM) authenticates each webhook using the subscription key in the `Ocp-Apim-Subscription-Key` header. It uses its managed identity to start a Container Apps Job execution. The agent container runs in single-run mode (`SCALR_AGENT_SINGLE=true`). It starts in 5 to 15 seconds, connects to Scalr, executes the run, and exits. The Azure Files shares keep providers and modules between runs, so later runs skip those downloads.
 
 ### Webhook delivery and idempotency
 
-Scalr delivers each webhook at least once: up to 3 attempts with a 15 s read timeout, all with the same `Idempotency-Key` header (the agent task ID). An endpoint that deduplicates on that header starts one container per task even when Scalr retries.
+Scalr delivers each webhook at least once, with the agent task ID in the `Idempotency-Key` header. It retries a delivery that times out, fails to connect, or returns a non-`2xx` status, up to 3 attempts in total. See the [webhook reference](https://docs.scalr.io/docs/serverless-webhooks#response-and-retries). An endpoint that deduplicates on that header starts one container per task even when Scalr retries.
 
 **This module does not deduplicate.** Azure has no native support for it:
 
 - The Container Apps Job `start` API has no idempotency token. ECS `RunTask` on AWS has `clientToken`.
 - The APIM Consumption tier has no built-in cache, so the policy cannot remember the keys it has seen.
 
-Deduplication would need an extra state store such as Azure Cache for Redis, which costs more than the rest of this deployment. The policy starts one job execution per delivery and returns the Container Apps response unchanged, so a failed start returns a non-2xx status and Scalr retries. Scalr retries only when the job start takes longer than 15 s. In that case the extra execution starts an agent that finds no task and exits.
+Deduplication would need an extra state store such as Azure Cache for Redis, which costs more than the rest of this deployment. The policy starts one job execution per delivery and returns the Container Apps response unchanged, so a failed start returns a non-`2xx` status and Scalr retries. A retry can follow an execution that already started, for example when the start response takes longer than 15 s or the connection drops. The extra execution starts an agent that finds no task and exits.
 
 ## Prerequisites
 
@@ -150,9 +150,9 @@ az rest --method POST --uri \
 |---|---|---|
 | `MissingSubscriptionRegistration` | The `Microsoft.App` resource provider is not registered | The azurerm provider registers it (`resource_provider_registrations = "extended"`). With a restricted service principal, register it yourself: `az provider register --namespace Microsoft.App` |
 | `401` on the webhook | The subscription key does not match the deployed one | Read the key again: `tofu output -raw api_key` |
-| The job starts but the agent picks up no run | Wrong agent token or Scalr URL | Check the `SCALR_URL` and `SCALR_TOKEN` environment variables of the job |
+| The job starts but the agent picks up no run | Wrong agent token or Scalr URL | Check the `SCALR_URL` and `SCALR_AGENT_TOKEN` environment variables of the job |
 | Slow first webhook call, about 5 s | APIM Consumption cold start | Expected after an idle period |
-| Extra job execution that exits without a run | Scalr retried a delivery whose job start took longer than 15 s | Expected. See Webhook delivery and idempotency |
+| Extra job execution that exits without a run | Scalr retried a delivery after an execution had already started | Expected. See Webhook delivery and idempotency |
 
 ## Security
 

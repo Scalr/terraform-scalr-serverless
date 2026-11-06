@@ -1,8 +1,9 @@
 terraform {
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
+      source = "hashicorp/aws"
+      # logging_config on aws_lambda_function needs 5.32.0 or later.
+      version = "~> 5.32"
     }
     scalr = {
       source = "scalr/scalr"

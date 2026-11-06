@@ -6,23 +6,22 @@ import hashlib
 import json
 import logging
 import os
-import re
-from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict
+from typing import TYPE_CHECKING, TypedDict
 
 import boto3
+from botocore.config import Config
+from botocore.exceptions import BotoCoreError, ClientError
 
 if TYPE_CHECKING:
     from types_boto3_ecs import ECSClient
-    from types_boto3_ecs.type_defs import FailureTypeDef, RunTaskRequestTypeDef
 
 LOG = logging.getLogger(__name__)
 
-ECS: ECSClient = boto3.client("ecs")
-
-IDEMPOTENCY_HEADER = "idempotency-key"
-
-# ECS accepts a clientToken of 1 to 64 ASCII characters in the range 33-126.
-CLIENT_TOKEN_PATTERN = re.compile(r"[\x21-\x7e]{1,64}")
+# One short attempt keeps the response within Scalr's 15-second webhook timeout.
+ECS: ECSClient = boto3.client(
+    "ecs",
+    config=Config(connect_timeout=2, read_timeout=5, retries={"total_max_attempts": 1}),
+)
 
 
 class ApiGatewayProxyEvent(TypedDict):
@@ -31,13 +30,12 @@ class ApiGatewayProxyEvent(TypedDict):
     headers: dict[str, str] | None
 
 
-class WebhookResult(TypedDict):
-    """JSON body returned to Scalr."""
+class TaskRequested(TypedDict):
+    taskArn: str
 
-    status: Literal["started", "duplicate", "error"]
-    idempotencyKey: str | None
-    tasks: NotRequired[list[str]]
-    failures: NotRequired[list[FailureTypeDef]]
+
+class WebhookError(TypedDict):
+    error: str
 
 
 class ApiGatewayProxyResponse(TypedDict):
@@ -46,69 +44,50 @@ class ApiGatewayProxyResponse(TypedDict):
     body: str
 
 
-def build_client_token(idempotency_key: str) -> str:
-    """Return the key itself if ECS accepts it as a clientToken, otherwise its SHA-256 digest."""
-    if CLIENT_TOKEN_PATTERN.fullmatch(idempotency_key):
-        return idempotency_key
-    return hashlib.sha256(idempotency_key.encode()).hexdigest()
-
-
-def respond(status_code: int, result: WebhookResult) -> ApiGatewayProxyResponse:
+def respond(status_code: int, body: TaskRequested | WebhookError) -> ApiGatewayProxyResponse:
     return {
         "statusCode": status_code,
         "headers": {"Content-Type": "application/json"},
-        "body": json.dumps(result),
+        "body": json.dumps(body),
     }
 
 
 def lambda_handler(event: ApiGatewayProxyEvent, _context: object) -> ApiGatewayProxyResponse:
-    """Start one ECS task per Idempotency-Key; requests without the key always start a task.
-
-    An ECS API error propagates, so API Gateway returns 502 and Scalr retries the delivery.
-    """
-    idempotency_key: str | None = None
-    for name, value in (event["headers"] or {}).items():
-        # Header names are case-insensitive, and API Gateway keeps the sender's casing.
-        if name.lower() == IDEMPOTENCY_HEADER and value.strip():
-            idempotency_key = value.strip()
+    """Request one ECS task per Idempotency-Key and return 202 once ECS accepts the launch."""
+    # Header names are case-insensitive, and API Gateway keeps the sender's casing.
+    headers = {name.lower(): value for name, value in (event["headers"] or {}).items()}
+    idempotency_key = headers.get("idempotency-key")
+    if not idempotency_key:
+        LOG.warning("Rejected webhook without Idempotency-Key")
+        return respond(400, {"error": "Idempotency-Key header is required"})
     log_fields = {"idempotency_key": idempotency_key}
 
-    request: RunTaskRequestTypeDef = {
-        "cluster": os.environ["CLUSTER"],
-        "taskDefinition": os.environ["TASK_DEFINITION"],
-        "launchType": "FARGATE",
-        "count": 1,
-        "networkConfiguration": {
-            "awsvpcConfiguration": {
-                "subnets": os.environ["SUBNET_IDS"].split(","),
-                "securityGroups": [os.environ["SECURITY_GROUP"]],
-                "assignPublicIp": "ENABLED",
-            }
-        },
-    }
-    if idempotency_key:
-        # ECS returns the first result for a token it has seen in the last 24 hours.
-        request["clientToken"] = build_client_token(idempotency_key)
-
     try:
-        result = ECS.run_task(**request)
-    except ECS.exceptions.ConflictException:
-        # ECS raises this when the token belongs to a RunTask with other parameters,
-        # for example after a new task definition revision.
-        LOG.info("ECS task already started for idempotency key", extra=log_fields)
-        return respond(200, {"status": "duplicate", "idempotencyKey": idempotency_key})
+        result = ECS.run_task(
+            cluster=os.environ["CLUSTER"],
+            taskDefinition=os.environ["TASK_DEFINITION"],
+            launchType="FARGATE",
+            count=1,
+            # ECS returns the original task for a token it has already accepted.
+            clientToken=hashlib.sha256(idempotency_key.encode()).hexdigest(),
+            networkConfiguration={
+                "awsvpcConfiguration": {
+                    "subnets": os.environ["SUBNET_IDS"].split(","),
+                    "securityGroups": [os.environ["SECURITY_GROUP"]],
+                    "assignPublicIp": "ENABLED",
+                }
+            },
+        )
+    except (BotoCoreError, ClientError):
+        LOG.exception("ECS RunTask request failed", extra=log_fields)
+        return respond(502, {"error": "ECS RunTask request failed"})
 
-    task_arns = [task["taskArn"] for task in result["tasks"] if "taskArn" in task]
-    if not task_arns:
+    if result["failures"] or not result["tasks"]:
         LOG.error(
-            "ECS did not place the task", extra={**log_fields, "failures": result["failures"]}
+            "ECS could not launch the task", extra={**log_fields, "failures": result["failures"]}
         )
-        return respond(
-            503,
-            {"status": "error", "idempotencyKey": idempotency_key, "failures": result["failures"]},
-        )
+        return respond(502, {"error": "ECS could not launch the task"})
 
-    LOG.info("ECS task started", extra={**log_fields, "task_arns": task_arns})
-    return respond(
-        200, {"status": "started", "idempotencyKey": idempotency_key, "tasks": task_arns}
-    )
+    task_arn = result["tasks"][0]["taskArn"]
+    LOG.info("ECS task requested", extra={**log_fields, "task_arn": task_arn})
+    return respond(202, {"taskArn": task_arn})

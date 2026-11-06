@@ -26,23 +26,23 @@ flowchart LR
     ecs -. "connects back" .-> scalr
 ```
 
-API Gateway authenticates each webhook using the API key in the `x-api-key` header and, by default, checks that the source IP is on the Scalr allowlist. It then invokes Lambda, which calls ECS `RunTask` to start a Fargate task with the Scalr agent in single-run mode (`SCALR_SINGLE=true`). The agent connects to Scalr, executes the run, and exits. The EFS file system keeps providers and modules between runs, so later runs skip those downloads.
+API Gateway authenticates each webhook using the API key in the `x-api-key` header and, by default, checks that the source IP is on the Scalr allowlist. It then invokes Lambda, which calls ECS `RunTask` to start a Fargate task with the Scalr agent in single-run mode (`SCALR_AGENT_SINGLE=true`). The agent connects to Scalr, executes the run, and exits. The EFS file system keeps providers and modules between runs, so later runs skip those downloads.
 
 ### Webhook delivery and idempotency
 
-Scalr delivers each webhook at least once: up to 3 attempts with a 15 s read timeout, all with the same `Idempotency-Key` header (the agent task ID). An endpoint that does not deduplicate on that header starts an extra agent container for every retry.
+Scalr delivers each webhook at least once, with the agent task ID in the `Idempotency-Key` header. It retries a delivery that times out, fails to connect, or returns a non-`2xx` status, up to 3 attempts in total. See the [webhook reference](https://docs.scalr.io/docs/serverless-webhooks#response-and-retries). An endpoint that does not deduplicate on that header can start an extra agent container for every retry.
 
-The Lambda function passes `Idempotency-Key` to ECS `RunTask` as `clientToken`. ECS remembers a client token for up to 24 hours per cluster and returns the original task for repeated calls, so one key starts at most one Fargate task. A delivery without the header always starts a task.
+The Lambda function passes the SHA-256 hash of `Idempotency-Key` to ECS `RunTask` as `clientToken`. ECS remembers a client token for up to 24 hours per cluster and returns the original task for repeated calls, so one key starts at most one Fargate task. The function follows the handler in the [manual setup guide](https://docs.scalr.io/docs/serverless-aws-fargate).
 
 The function returns:
 
 | Status | Meaning |
 |---|---|
-| `200` | The function started a task, or a task for this key already exists |
-| `503` | ECS could not place the task. The body lists the ECS `failures` |
-| `502` | The ECS API call failed. API Gateway returns this status when the function raises an error. Scalr retries |
+| `202` | ECS accepted the launch, or a task for this key already exists. The body has the `taskArn` |
+| `400` | The request has no `Idempotency-Key` header. The function starts no task |
+| `502` | The ECS `RunTask` request failed, or ECS could not launch the task. Scalr retries |
 
-ECS also remembers a placement failure for the client token. A retry with the same `Idempotency-Key` returns the same `503` without a new placement attempt.
+ECS also remembers a launch failure for the client token. A retry with the same `Idempotency-Key` returns the same `502` without a new launch attempt.
 
 ## Prerequisites
 
@@ -76,7 +76,7 @@ The apply creates the AWS resources and the Scalr agent pool, and registers the 
 | `ecs_task_stop_timeout` | Seconds ECS waits for the agent to stop before it kills the container | `120` |
 | `lambda_timeout` | Lambda timeout (seconds) | `30` |
 | `lambda_memory_size` | Lambda memory (MB) | `128` |
-| `lambda_runtime` | Lambda Python runtime. The handler requires `python3.11` or later | `python3.11` |
+| `lambda_runtime` | Lambda Python runtime. The handler requires `python3.11` or later | `python3.13` |
 
 ## Outputs
 
@@ -96,7 +96,7 @@ The apply creates the AWS resources and the Scalr agent pool, and registers the 
 | API Gateway (REST API) | Webhook endpoint with API key authentication and IP restriction. HTTP APIs (API Gateway v2) do not support resource policies, API keys, or usage plans, so the module uses a REST API |
 | Lambda function | Starts one ECS task per webhook delivery |
 | ECS cluster and task definition | Run the Scalr agent container on Fargate |
-| Secrets Manager secret | Holds the Scalr agent token. The task definition injects it as `SCALR_TOKEN` |
+| Secrets Manager secret | Holds the Scalr agent token. The task definition injects it as `SCALR_AGENT_TOKEN` |
 | EFS file system and access points | Persistent Terraform provider and module cache |
 | Security groups | Network access control for ECS and EFS |
 
@@ -135,7 +135,7 @@ curl -s -X POST "$WEBHOOK_URL" \
   -d '{}'
 ```
 
-Send the request twice with the same `Idempotency-Key`. The second call returns `200` and does not start a second task.
+A successful request returns `202` with the ECS task ARN. Send the request twice with the same `Idempotency-Key`. The second call returns the same task ARN and does not start a second task.
 
 ### Check ECS task status
 
@@ -172,6 +172,8 @@ curl -s https://scalr.io/.well-known/allowlist.txt
 | `403` on the webhook | The source IP is not in the Scalr allowlist | Compare the source IP with the allowlist. For testing, set `allow_all_ingress = true` |
 | `403` with a valid API key | The key does not match the deployed one | Read the key again: `tofu output -raw api_key` |
 | Lambda timeout | The ECS `RunTask` call took longer than `lambda_timeout` | Increase `lambda_timeout` |
-| Webhook returns `200` but no new task starts | A task for this `Idempotency-Key` started within the last 24 hours | Expected. Send a new key to start another task |
+| Webhook returns `202` but no new task starts | A task for this `Idempotency-Key` started within the last 24 hours | Expected. Send a new key to start another task |
+| `ECS could not launch the task` in Lambda logs | ECS rejected the launch | Read the `reason` in the logged `failures` list |
+| `ConflictException` in Lambda logs | A retry reused a client token with different launch parameters, for example after a new task definition revision | Keep launch settings stable while Scalr retries. The webhook returns `502` |
 | ECS task fails to start | Image pull error or resource limits | Check the CloudWatch logs and verify that the image exists |
 | Slow first run | The agent downloads providers into the empty EFS cache | Expected. Later runs use the cached providers |
