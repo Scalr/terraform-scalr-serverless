@@ -6,19 +6,26 @@ Product documentation: [Serverless agent pools](https://docs.scalr.io/docs/serve
 
 ## Architecture
 
-The diagram shows the path of one run request. Each solid arrow is a synchronous call; the dotted arrow is the agent reporting to Scalr during the run.
+Solid arrows show how a webhook starts an agent and how the agent accesses its cache. The dotted arrow shows the agent's separate connection back to Scalr during the run.
 
 ```mermaid
-flowchart TB
+---
+config:
+  flowchart:
+    nodeSpacing: 24
+    rankSpacing: 24
+    padding: 8
+---
+flowchart LR
     accTitle: Azure serverless agent pool request flow
-    accDescr: Scalr sends a webhook to API Management. API Management checks the subscription key, then starts a Container Apps Job execution through its managed identity. The execution runs the Scalr agent, which mounts the Azure Files cache and executes the run.
-    scalr[Scalr] -- "sends webhook" --> apim[API Management, Consumption<br/>checks Ocp-Apim-Subscription-Key]
-    apim -- "starts execution with managed identity" --> job[Container Apps Job execution<br/>scalr/agent, SCALR_SINGLE=true]
-    job -- "mounts" --> files[(Azure Files<br/>provider and module cache)]
-    job -. "executes the run" .-> scalr
+    accDescr: Scalr sends a webhook to API Management. API Management checks the subscription key and uses its managed identity to start a Container Apps Job execution. The single-run agent mounts the Azure Files cache and connects back to Scalr to execute the run.
+    scalr[Scalr] -- "webhook" --> apim[API Management<br/>authenticates webhook]
+    apim -- "starts job" --> job[Container Apps Job<br/>runs Scalr agent]
+    job -- "mounts" --> files[(Azure Files<br/>stores downloads)]
+    job -. "connects back" .-> scalr
 ```
 
-API Management (APIM) authenticates the webhook and starts a Container Apps Job execution through its managed identity. The agent container starts in 5 to 15 seconds, connects to Scalr, executes the run, and exits. The Azure Files shares keep providers and modules between runs, so later runs skip those downloads.
+API Management (APIM) authenticates each webhook using the subscription key in the `Ocp-Apim-Subscription-Key` header. It uses its managed identity to start a Container Apps Job execution. The agent container runs in single-run mode (`SCALR_SINGLE=true`). It starts in 5 to 15 seconds, connects to Scalr, executes the run, and exits. The Azure Files shares keep providers and modules between runs, so later runs skip those downloads.
 
 ### Webhook delivery and idempotency
 

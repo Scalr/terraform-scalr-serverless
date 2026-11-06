@@ -6,20 +6,27 @@ Product documentation: [Serverless agent pools](https://docs.scalr.io/docs/serve
 
 ## Architecture
 
-The diagram shows the path of one run request. Each solid arrow is a synchronous call; the dotted arrow is the agent reporting to Scalr during the run.
+Solid arrows show how a webhook starts an agent and how the agent accesses its cache. The dotted arrow shows the agent's separate connection back to Scalr during the run.
 
 ```mermaid
-flowchart TB
+---
+config:
+  flowchart:
+    nodeSpacing: 24
+    rankSpacing: 24
+    padding: 8
+---
+flowchart LR
     accTitle: AWS serverless agent pool request flow
-    accDescr: Scalr sends a webhook to API Gateway. API Gateway checks the API key and the source IP, then invokes a Lambda function. The function starts an ECS Fargate task that runs the Scalr agent. The agent mounts the EFS cache and executes the run.
-    scalr[Scalr] -- "sends webhook" --> apigw[API Gateway REST API<br/>checks x-api-key and source IP]
-    apigw -- "invokes" --> lambda[Lambda function]
-    lambda -- "RunTask with clientToken" --> ecs[ECS Fargate task<br/>scalr/agent, SCALR_SINGLE=true]
-    ecs -- "mounts" --> efs[(EFS<br/>provider and module cache)]
-    ecs -. "executes the run" .-> scalr
+    accDescr: Scalr sends a webhook to API Gateway. API Gateway checks the API key and, by default, the source IP, then invokes Lambda. Lambda calls ECS RunTask to start a single-run Fargate task. The agent mounts the EFS cache and connects back to Scalr to execute the run.
+    scalr[Scalr] -- "webhook" --> apigw[API Gateway<br/>authenticates webhook]
+    apigw --> lambda[Lambda<br/>starts task]
+    lambda --> ecs[ECS Fargate<br/>runs Scalr agent]
+    ecs -- "mounts" --> efs[(EFS<br/>stores downloads)]
+    ecs -. "connects back" .-> scalr
 ```
 
-API Gateway authenticates the webhook and invokes the Lambda function. The function starts an ECS Fargate task with the Scalr agent. The agent connects to Scalr, executes the run, and exits. The EFS file system keeps providers and modules between runs, so later runs skip those downloads.
+API Gateway authenticates each webhook using the API key in the `x-api-key` header and, by default, checks that the source IP is on the Scalr allowlist. It then invokes Lambda, which calls ECS `RunTask` to start a Fargate task with the Scalr agent in single-run mode (`SCALR_SINGLE=true`). The agent connects to Scalr, executes the run, and exits. The EFS file system keeps providers and modules between runs, so later runs skip those downloads.
 
 ### Webhook delivery and idempotency
 

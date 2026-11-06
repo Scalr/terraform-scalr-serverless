@@ -8,21 +8,28 @@ Each webhook from Scalr starts a container that executes one Terraform run and e
 
 ## Architecture
 
-The diagram shows which components handle a run request and in which order. Solid arrows are synchronous requests; the dotted arrow is the agent reporting to Scalr during the run.
+Solid arrows show how a webhook starts an agent and how the agent accesses its cache. The dotted arrow shows the agent's separate connection back to Scalr during the run.
 
 ```mermaid
+---
+config:
+  flowchart:
+    nodeSpacing: 24
+    rankSpacing: 24
+    padding: 8
+---
 flowchart LR
     accTitle: Serverless agent pool request flow
-    accDescr: Scalr sends a webhook to the API gateway. The gateway authenticates it and starts an agent container. The container reads and writes a persistent cache and reports the run to Scalr.
-    scalr[Scalr] -- "sends webhook" --> gateway[API gateway]
-    gateway -- "authenticates and starts" --> agent[Agent container<br/>scalr/agent]
-    agent -- "reads and writes" --> cache[(Persistent cache<br/>providers and modules)]
-    agent -. "executes the run" .-> scalr
+    accDescr: Scalr sends a webhook to an API gateway. The webhook endpoint authenticates the request and starts a single-run agent container. The agent mounts a persistent provider and module cache and connects back to Scalr to execute the run.
+    scalr[Scalr] -- "webhook" --> gateway[Webhook endpoint<br/>authenticates request]
+    gateway -- "starts" --> agent[Agent container<br/>executes one run]
+    agent -- "mounts" --> cache[(Persistent cache<br/>stores downloads)]
+    agent -. "connects back" .-> scalr
 ```
 
 1. Scalr queues a Terraform run and sends a webhook to the configured endpoint.
 2. The API gateway authenticates the request with an API key.
-3. The gateway starts a container with the Scalr agent in single-run mode (`SCALR_SINGLE=true`).
+3. The webhook endpoint starts a container with the Scalr agent in single-run mode (`SCALR_SINGLE=true`), through Lambda on AWS or directly on Azure.
 4. The agent connects to Scalr, executes the run, and exits.
 5. The persistent cache keeps Terraform providers and modules between runs.
 
