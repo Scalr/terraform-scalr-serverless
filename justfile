@@ -40,8 +40,8 @@ test:
 
 # Check local links and anchors in Markdown files.
 lychee *paths:
-    lychee --offline {{ if paths == "" { "." } else { paths } }}
+    lychee --offline --include-fragments {{ if paths == "" { "." } else { paths } }}
 
 # Check local and external links in Markdown files.
 lychee-online *paths:
-    lychee {{ if paths == "" { "." } else { paths } }}
+    lychee --include-fragments {{ if paths == "" { "." } else { paths } }}

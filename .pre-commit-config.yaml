@@ -45,6 +45,6 @@ repos:
         files: \.(tf|tfvars)$
       - id: lychee
         name: lychee (offline)
-        entry: lychee --offline
+        entry: lychee --offline --include-fragments
         language: system
         types: [markdown]

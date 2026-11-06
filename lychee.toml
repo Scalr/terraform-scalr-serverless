@@ -1,7 +1,7 @@
 # Link checker config: https://lychee.cli.rs/guides/config/
 # Run with `just lychee` (offline) or `just lychee-online`.
+# Callers pass --include-fragments: its config type differs between lychee 0.23 and 0.24.
 extensions = ["md"]
-include_fragments = true
 exclude_loopback = true
 no_progress = true
 exclude_path = ["\\.venv", "\\.terraform"]
