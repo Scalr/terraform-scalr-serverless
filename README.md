@@ -39,12 +39,12 @@ Scalr delivers each webhook at least once: up to 3 attempts with a 15 s read tim
 
 | | AWS | Azure |
 |---|---|---|
-| **Webhook gateway** | API Gateway (REST API) and Lambda | API Management (Consumption) |
-| **Compute** | ECS Fargate | Container Apps Job |
-| **Cache storage** | EFS | Azure Files |
-| **Deduplicates on `Idempotency-Key`** | Yes, with ECS `RunTask` `clientToken` | No |
-| **Cold start** | 10 to 20 s | 5 to 15 s |
-| **Platform guide** | [`aws/README.md`](aws/README.md) | [`azure/README.md`](azure/README.md) |
+| **Webhook gateway** | [API Gateway](https://aws.amazon.com/api-gateway/) (REST API) and [Lambda](https://aws.amazon.com/lambda/) | [API Management](https://azure.microsoft.com/en-us/products/api-management) (Consumption) |
+| **Compute** | [ECS Fargate](https://aws.amazon.com/fargate/) | [Container Apps Job](https://learn.microsoft.com/en-us/azure/container-apps/jobs) |
+| **Cache storage** | [EFS](https://aws.amazon.com/efs/) | [Azure Files](https://azure.microsoft.com/en-us/products/storage/files) |
+| **Agent start time** | 10 to 20 s | 5 to 15 s |
+| **Webhook idempotency** | Supported through the [`Idempotency-Key`](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) header. Webhook retries cannot start duplicate containers | Not supported. The Container Apps Job start API has no idempotency key, so webhook retries can start extra agents |
+| **Setup and troubleshooting** | [AWS guide](aws/README.md) | [Azure guide](azure/README.md) |
 
 ## Prerequisites
 
