@@ -27,9 +27,10 @@ jobs:
       - run: uv run --frozen prek run --all-files --show-diff-on-failure
         env:
           SKIP: lychee
+      - run: uv run --frozen pytest
 
   validate:
-    name: Validate ${{ matrix.root }}
+    name: Validate and test ${{ matrix.root }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -43,6 +44,8 @@ jobs:
       - run: tofu init -backend=false -input=false
         working-directory: ${{ matrix.root }}
       - run: tofu validate
+        working-directory: ${{ matrix.root }}
+      - run: tofu test
         working-directory: ${{ matrix.root }}
 
   links:

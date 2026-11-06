@@ -11,6 +11,7 @@ dependencies = []
 dev = [
     "boto3>=1.43.125",
     "prek>=0.5.10",
+    "pytest>=9.2.0",
     "ruff>=0.17.4",
     "ty>=0.0.98",
     "types-boto3[ecs]>=1.43.124",
@@ -35,5 +36,15 @@ select = [
   "RUF", # ruff-specific rules
 ]
 
+[tool.ruff.lint.isort]
+known-first-party = ["lambda_function"]
+
 [tool.ty.environment]
 python-version = "3.11"
+# The Lambda handler is a single file, imported by the tests as a top-level module.
+extra-paths = ["aws"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["aws"]
+addopts = ["--strict-markers"]

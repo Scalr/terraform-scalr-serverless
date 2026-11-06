@@ -27,6 +27,17 @@ validate:
         tofu -chdir="$root" validate
     done
 
+# Run the Python tests and the Terraform tests of each root module.
+test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    uv run pytest
+    for root in {{ roots }}; do
+        echo "== $root"
+        tofu -chdir="$root" init -backend=false -input=false >/dev/null
+        tofu -chdir="$root" test
+    done
+
 # Check local links and anchors in Markdown files.
 lychee *paths:
     lychee --offline {{ if paths == "" { "." } else { paths } }}
