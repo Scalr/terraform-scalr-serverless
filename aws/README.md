@@ -76,7 +76,7 @@ The apply creates the AWS resources and the Scalr agent pool, and registers the 
 | `ecs_task_stop_timeout` | Seconds ECS waits for the agent to stop before it kills the container | `120` |
 | `lambda_timeout` | Lambda timeout (seconds) | `30` |
 | `lambda_memory_size` | Lambda memory (MB) | `128` |
-| `lambda_runtime` | Python runtime version | `python3.11` |
+| `lambda_runtime` | Lambda Python runtime. The handler requires `python3.11` or later | `python3.11` |
 
 ## Outputs
 

@@ -3,7 +3,7 @@ name = "terraform-scalr-serverless"
 version = "0.1.0"
 description = "Terraform and OpenTofu modules for Scalr serverless agent pools"
 readme = "README.md"
-# Matches the default Lambda runtime (var.lambda_runtime = python3.11).
+# The Lambda handler requires Python 3.11; the lambda_runtime variable enforces the same minimum.
 requires-python = ">=3.11"
 dependencies = []
 

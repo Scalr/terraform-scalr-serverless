@@ -71,8 +71,14 @@ variable "lambda_handler" {
 
 variable "lambda_runtime" {
   type        = string
-  description = "Lambda handler runtime"
+  description = "Lambda Python runtime, python3.11 or later"
   default     = "python3.11"
+
+  # The handler uses typing features from Python 3.11.
+  validation {
+    condition     = can(regex("^python3\\.(1[1-9]|[2-9][0-9])$", var.lambda_runtime))
+    error_message = "The Lambda runtime must be python3.11 or later."
+  }
 }
 
 variable "lambda_timeout" {

@@ -116,3 +116,26 @@ run "lambda_targets_the_agent_task" {
     error_message = "The Lambda function must write JSON logs to keep structured fields."
   }
 }
+
+run "lambda_rejects_runtimes_before_python_3_11" {
+  command = plan
+
+  module {
+    source = "./modules/lambda"
+  }
+
+  variables {
+    function_name       = "scalr-agent"
+    cluster_name        = "scalr-agent-pool-cluster"
+    task_definition_arn = "arn:aws:ecs:us-east-1:123456789012:task-definition/scalr-agent-run:1"
+    security_group_id   = "sg-0123456789abcdef0"
+    subnet_ids          = ["subnet-a", "subnet-b"]
+    source_file         = "lambda_function.py"
+    handler             = "lambda_function.lambda_handler"
+    runtime             = "python3.10"
+    timeout             = 30
+    memory_size         = 128
+  }
+
+  expect_failures = [var.runtime]
+}
