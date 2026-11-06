@@ -100,7 +100,6 @@ run "lambda_targets_the_agent_task" {
     source = "./modules/lambda"
   }
 
-
   assert {
     condition = aws_lambda_function.scalr_webhook.environment[0].variables == tomap({
       CLUSTER         = "scalr-agent-pool-cluster"
