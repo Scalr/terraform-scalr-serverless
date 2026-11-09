@@ -34,6 +34,8 @@ Scalr delivers each webhook at least once, with the agent task ID in the `Idempo
 
 The Lambda function passes the SHA-256 hash of `Idempotency-Key` to ECS `RunTask` as `clientToken`. ECS remembers a client token for up to 24 hours per cluster and returns the original task for repeated calls, so one key starts at most one Fargate task. The function follows the handler in the [manual setup guide](https://docs.scalr.io/docs/serverless-aws-fargate).
 
+The function also passes the `Idempotency-Key` value, the agent task ID, to the agent container as `SCALR_AGENT_TASK_ID`. The agent claims only that task, so it cannot take a task that another container was started for. When the task is already taken, canceled, or finished, the agent exits with code 0 instead of waiting idle. An agent that does not support the option ignores the variable and claims any waiting task of the pool.
+
 The function returns:
 
 | Status | Meaning |
@@ -153,6 +155,8 @@ curl -s -X POST "$WEBHOOK_URL" \
 
 A successful request returns `202` with the ECS task ARN. Send the request twice with the same `Idempotency-Key`. The second call returns the same task ARN and does not start a second task.
 
+The agent treats the key as the ID of the task to claim. With a made-up key it finds no such task and exits with code 0, which still confirms that the task starts and the agent connects to Scalr. To run a real task, use the ID of an agent task that waits in the pool.
+
 ### Check ECS task status
 
 ```bash
@@ -191,5 +195,6 @@ curl -s https://scalr.io/.well-known/allowlist.txt
 | Webhook returns `202` but no new task starts | A task for this `Idempotency-Key` started within the last 24 hours | Expected. Send a new key to start another task |
 | `ECS could not launch the task` in Lambda logs | ECS rejected the launch | Read the `reason` in the logged `failures` list |
 | `ConflictException` in Lambda logs | A retry reused a client token with different launch parameters, for example after a new task definition revision | Keep launch settings stable while Scalr retries. The webhook returns `502` |
+| Agent exits right after it starts, with `already taken, canceled or finished` in its log | The run was canceled, or another agent took the task, before this container connected | Expected. The container stops instead of waiting idle |
 | ECS task fails to start | Image pull error or resource limits | Check the CloudWatch logs and verify that the image exists |
 | Slow first run | The agent downloads providers into the empty EFS cache | Expected. Later runs use the cached providers |

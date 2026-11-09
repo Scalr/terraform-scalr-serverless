@@ -13,6 +13,11 @@ variable "task_definition_arn" {
   type        = string
 }
 
+variable "container_name" {
+  description = "Name of the agent container in the ECS task definition"
+  type        = string
+}
+
 variable "security_group_id" {
   description = "ID of the security group for the Fargate task"
   type        = string

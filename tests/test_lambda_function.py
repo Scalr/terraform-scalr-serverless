@@ -20,6 +20,14 @@ RUN_TASK_REQUEST = {
             "assignPublicIp": "ENABLED",
         }
     },
+    "overrides": {
+        "containerOverrides": [
+            {
+                "name": "scalr-agent",
+                "environment": [{"name": "SCALR_AGENT_TASK_ID", "value": "task-1"}],
+            }
+        ]
+    },
 }
 TASK_ARN = "arn:aws:ecs:us-east-1:123456789012:task/cluster/1"
 
@@ -37,7 +45,7 @@ def call_handler(headers: dict[str, str] | None) -> tuple[int, dict]:
 
 
 @pytest.mark.parametrize("header_name", ["Idempotency-Key", "idempotency-key", "IDEMPOTENCY-KEY"])
-def test_requests_task_with_hashed_client_token(ecs: Stubber, header_name: str) -> None:
+def test_starts_agent_for_the_webhook_task(ecs: Stubber, header_name: str) -> None:
     ecs.add_response(
         "run_task", {"tasks": [{"taskArn": TASK_ARN}], "failures": []}, RUN_TASK_REQUEST
     )

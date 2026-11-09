@@ -14,6 +14,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 if TYPE_CHECKING:
     from types_boto3_ecs import ECSClient
+    from types_boto3_ecs.type_defs import TaskOverrideTypeDef
 
 LOG = logging.getLogger(__name__)
 
@@ -62,6 +63,17 @@ def lambda_handler(event: ApiGatewayProxyEvent, _context: object) -> ApiGatewayP
         return respond(400, {"error": "Idempotency-Key header is required"})
     log_fields = {"idempotency_key": idempotency_key}
 
+    # Idempotency-Key is the agent task ID. The agent claims only that task, and exits
+    # if it is already taken, canceled or finished.
+    overrides: TaskOverrideTypeDef = {
+        "containerOverrides": [
+            {
+                "name": os.environ["CONTAINER_NAME"],
+                "environment": [{"name": "SCALR_AGENT_TASK_ID", "value": idempotency_key}],
+            }
+        ]
+    }
+
     try:
         result = ECS.run_task(
             cluster=os.environ["CLUSTER"],
@@ -77,6 +89,7 @@ def lambda_handler(event: ApiGatewayProxyEvent, _context: object) -> ApiGatewayP
                     "assignPublicIp": "ENABLED",
                 }
             },
+            overrides=overrides,
         )
     except (BotoCoreError, ClientError):
         LOG.exception("ECS RunTask request failed", extra=log_fields)
