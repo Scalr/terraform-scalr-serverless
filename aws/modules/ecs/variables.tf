@@ -70,3 +70,14 @@ variable "task_stop_timeout" {
   description = "Time to wait for the task to stop gracefully before force-killing (in seconds)"
   default     = 120
 }
+
+variable "agent_environment" {
+  type        = map(string)
+  description = "Extra environment variables for the agent container, such as SCALR_AGENT_* options. Values are not secret"
+  default     = {}
+
+  validation {
+    condition     = length(setintersection(keys(var.agent_environment), ["SCALR_AGENT_TOKEN", "SCALR_AGENT_SINGLE"])) == 0
+    error_message = "agent_environment cannot set SCALR_AGENT_TOKEN or SCALR_AGENT_SINGLE. The module sets them."
+  }
+}

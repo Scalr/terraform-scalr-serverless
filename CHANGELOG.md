@@ -17,6 +17,7 @@ Each entry names the platform it affects. A breaking entry says what to do befor
 ### Added
 
 - **AWS:** the Lambda function passes the SHA-256 hash of the webhook `Idempotency-Key` header to ECS `RunTask` as `clientToken`. Webhook retries for the same agent task no longer start extra Fargate tasks.
+- **AWS and Azure:** the `agent_environment` variable sets extra environment variables, such as `SCALR_AGENT_*` options, on the agent container.
 
 ### Changed
 

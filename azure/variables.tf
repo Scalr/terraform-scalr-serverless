@@ -51,3 +51,9 @@ variable "max_parallel_runs" {
   type        = number
   default     = 10
 }
+
+variable "agent_environment" {
+  type        = map(string)
+  description = "Extra environment variables for the agent container, such as SCALR_AGENT_* options. Values are not secret"
+  default     = {}
+}

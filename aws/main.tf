@@ -105,6 +105,7 @@ module "ecs" {
   task_name         = var.ecs_task_name
   scalr_url         = module.agent_pool.scalr_url
   scalr_agent_token = module.agent_pool.agent_token
+  agent_environment = var.agent_environment
 
   security_group_name = var.ecs_security_group_name
   task_stop_timeout   = var.ecs_task_stop_timeout

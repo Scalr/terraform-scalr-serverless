@@ -105,6 +105,21 @@ resource "azurerm_container_app_environment_storage" "providers_cache" {
 locals {
   use_file_cache = var.storage_account_name != ""
   use_registry   = var.registry_server != ""
+
+  # var.agent_environment overrides these defaults; its validation keeps the token and single-run mode.
+  agent_environment = merge(
+    {
+      SCALR_URL              = var.scalr_url
+      SCALR_AGENT_SINGLE     = "true"
+      SCALR_AGENT_DRIVER     = "local"
+      SCALR_AGENT_LOG_FORMAT = "json"
+    },
+    local.use_file_cache ? {
+      TF_PLUGIN_CACHE_DIR = "/terraform-cache"
+      TF_DATA_DIR         = "/providers-cache"
+    } : {},
+    var.agent_environment,
+  )
 }
 
 resource "azurerm_container_app_job" "scalr_agent" {
@@ -151,43 +166,15 @@ resource "azurerm_container_app_job" "scalr_agent" {
       memory = "${var.container_memory_gb}Gi"
 
       env {
-        name  = "SCALR_URL"
-        value = var.scalr_url
-      }
-
-      env {
         name        = "SCALR_AGENT_TOKEN"
         secret_name = "scalr-token"
       }
 
-      env {
-        name  = "SCALR_AGENT_SINGLE"
-        value = "true"
-      }
-
-      env {
-        name  = "SCALR_AGENT_DRIVER"
-        value = "local"
-      }
-
-      env {
-        name  = "SCALR_AGENT_LOG_FORMAT"
-        value = "json"
-      }
-
       dynamic "env" {
-        for_each = local.use_file_cache ? [1] : []
+        for_each = local.agent_environment
         content {
-          name  = "TF_PLUGIN_CACHE_DIR"
-          value = "/terraform-cache"
-        }
-      }
-
-      dynamic "env" {
-        for_each = local.use_file_cache ? [1] : []
-        content {
-          name  = "TF_DATA_DIR"
-          value = "/providers-cache"
+          name  = env.key
+          value = env.value
         }
       }
 

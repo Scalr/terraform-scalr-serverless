@@ -98,3 +98,9 @@ variable "ecs_task_stop_timeout" {
   description = "Time to wait for the ECS task to stop gracefully before force-killing (in seconds)"
   default     = 120
 }
+
+variable "agent_environment" {
+  type        = map(string)
+  description = "Extra environment variables for the agent container, such as SCALR_AGENT_* options. Values are not secret"
+  default     = {}
+}

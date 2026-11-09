@@ -129,6 +129,23 @@ resource "aws_ecs_cluster" "main" {
 }
 
 
+locals {
+  # var.agent_environment overrides these defaults; its validation keeps the token and single-run mode.
+  agent_environment = merge(
+    {
+      SCALR_URL              = var.scalr_url
+      SCALR_AGENT_SINGLE     = "true"
+      SCALR_AGENT_DRIVER     = "local"
+      SCALR_AGENT_LOG_FORMAT = "json"
+    },
+    var.efs_file_system_id != null ? {
+      TF_PLUGIN_CACHE_DIR = "/terraform-cache"
+      TF_DATA_DIR         = "/providers-cache"
+    } : {},
+    var.agent_environment,
+  )
+}
+
 resource "aws_ecs_task_definition" "webhook" {
   family                   = var.task_name
   network_mode             = "awsvpc"
@@ -183,33 +200,7 @@ resource "aws_ecs_task_definition" "webhook" {
         }
       ]
 
-      environment = concat([
-        {
-          name  = "SCALR_URL"
-          value = var.scalr_url
-        },
-        {
-          name  = "SCALR_AGENT_SINGLE"
-          value = "true"
-        },
-        {
-          name  = "SCALR_AGENT_DRIVER"
-          value = "local"
-        },
-        {
-          name  = "SCALR_AGENT_LOG_FORMAT"
-          value = "json"
-        }
-        ], var.efs_file_system_id != null ? [
-        {
-          name  = "TF_PLUGIN_CACHE_DIR"
-          value = "/terraform-cache"
-        },
-        {
-          name  = "TF_DATA_DIR"
-          value = "/providers-cache"
-        }
-      ] : [])
+      environment = [for name, value in local.agent_environment : { name = name, value = value }]
 
       mountPoints = var.efs_file_system_id != null ? [
         {

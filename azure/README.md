@@ -63,6 +63,22 @@ The first apply takes 10 to 15 minutes because APIM provisioning is slow. Later 
 | `container_memory_gb` | Memory (GB) per job execution. Container Apps requires 2 GB per CPU core | `8` |
 | `job_timeout` | Seconds a job execution can run before Container Apps stops it | `3600` |
 | `max_parallel_runs` | Maximum number of concurrent job executions | `10` |
+| `agent_environment` | Extra environment variables for the agent container. See [Agent configuration](#agent-configuration) | `{}` |
+
+### Agent configuration
+
+Set [agent configuration options](https://docs.scalr.io/docs/configuration) with `agent_environment`. Each entry becomes an environment variable of the agent container:
+
+```hcl
+agent_environment = {
+  SCALR_AGENT_NAME  = "serverless-agent"
+  SCALR_AGENT_DEBUG = "true"
+}
+```
+
+An entry overrides the module's value for the same name, such as `SCALR_AGENT_LOG_FORMAT`. The module always sets `SCALR_AGENT_TOKEN` and `SCALR_AGENT_SINGLE`, and rejects them in `agent_environment`.
+
+The values are stored in plain text in the Container Apps Job. Do not put secrets in `agent_environment`.
 
 ## Outputs
 

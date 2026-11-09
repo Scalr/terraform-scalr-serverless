@@ -89,4 +89,5 @@ module "webhook" {
   providers_cache_share_name = module.storage.providers_cache_share_name
   job_timeout                = var.job_timeout
   max_parallel_runs          = var.max_parallel_runs
+  agent_environment          = var.agent_environment
 }

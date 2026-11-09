@@ -77,6 +77,22 @@ The apply creates the AWS resources and the Scalr agent pool, and registers the 
 | `lambda_timeout` | Lambda timeout (seconds) | `30` |
 | `lambda_memory_size` | Lambda memory (MB) | `128` |
 | `lambda_runtime` | Lambda Python runtime. The handler requires `python3.11` or later | `python3.13` |
+| `agent_environment` | Extra environment variables for the agent container. See [Agent configuration](#agent-configuration) | `{}` |
+
+### Agent configuration
+
+Set [agent configuration options](https://docs.scalr.io/docs/configuration) with `agent_environment`. Each entry becomes an environment variable of the agent container:
+
+```hcl
+agent_environment = {
+  SCALR_AGENT_NAME  = "serverless-agent"
+  SCALR_AGENT_DEBUG = "true"
+}
+```
+
+An entry overrides the module's value for the same name, such as `SCALR_AGENT_LOG_FORMAT`. The module always sets `SCALR_AGENT_TOKEN` and `SCALR_AGENT_SINGLE`, and rejects them in `agent_environment`.
+
+The values are stored in plain text in the ECS task definition. Do not put secrets in `agent_environment`.
 
 ## Outputs
 
