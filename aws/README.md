@@ -26,7 +26,7 @@ flowchart LR
     ecs -. "connects back" .-> scalr
 ```
 
-API Gateway authenticates each webhook using the API key in the `x-api-key` header and, by default, checks that the source IP is on the Scalr allowlist. It then invokes Lambda, which calls ECS `RunTask` to start a Fargate task with the Scalr agent in single-run mode (`SCALR_AGENT_SINGLE=true`). The agent connects to Scalr, executes the run, and exits. The EFS file system keeps providers and modules between runs, so later runs skip those downloads.
+API Gateway authenticates each webhook using the API key in the `x-api-key` header and, by default, checks that the source IP is on the Scalr allowlist. It then invokes Lambda, which calls ECS `RunTask` to start a Fargate task with the Scalr agent in single-run mode (`SCALR_AGENT_SINGLE=true`) and returns. Lambda only starts the run: an invocation is limited to 15 minutes, so the run executes in the separate Fargate container, which has no time limit. The agent connects to Scalr, executes the run, and exits. The EFS file system keeps providers and modules between runs, so later runs skip those downloads.
 
 ### Webhook delivery and idempotency
 
