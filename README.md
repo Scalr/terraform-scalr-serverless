@@ -52,11 +52,19 @@ flowchart LR
 
 ## Quick start
 
-1. Change to the platform directory: `cd aws` or `cd azure`.
+1. Clone a release and change to the platform directory. Replace `{version}` with a tag from the [releases page](https://github.com/Scalr/terraform-scalr-serverless/releases), such as `v0.1.0`:
+
+   ```shell
+   git clone --branch {version} https://github.com/Scalr/terraform-scalr-serverless.git
+   cd terraform-scalr-serverless/aws    # or: cd terraform-scalr-serverless/azure
+   ```
+
 2. Set the variables. The Azure directory provides `terraform.tfvars.example` to copy to `terraform.tfvars`. Every AWS variable has a default, so create `terraform.tfvars` only to override one.
 3. Run `tofu init`, then `tofu apply`. The apply creates the cloud resources and the Scalr agent pool, and registers the webhook endpoint with Scalr.
 
 The platform guides cover each variable, cost estimates, and troubleshooting.
+
+To upgrade, read the [changelog](CHANGELOG.md) entries between your version and the new one, check out the new tag, and run `tofu apply`. Releases follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor release can include breaking changes.
 
 ## Custom container image
 
@@ -74,7 +82,7 @@ COPY providers/ /terraform-cache/
 3. Install [uv](https://docs.astral.sh/uv/), [just](https://just.systems/), [OpenTofu](https://opentofu.org/), and [lychee](https://lychee.cli.rs/), then run `just setup`. The command installs the Python tools and a git hook that runs the checks on each commit.
 4. Run `just lint`, `just validate`, and `just test` to check your changes. CI runs the same checks.
 5. For a change that affects deployments, add an entry to the Unreleased section of [CHANGELOG.md](CHANGELOG.md).
-6. Open a pull request.
+6. Open a pull request. Maintainers publish releases as described in [RELEASING.md](RELEASING.md).
 
 ## License
 
