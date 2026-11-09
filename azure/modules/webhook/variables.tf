@@ -27,13 +27,11 @@ variable "container_image" {
 variable "container_cpu" {
   description = "CPU cores for each agent container"
   type        = number
-  default     = 4
 }
 
 variable "container_memory_gb" {
   description = "Memory in GB for each agent container"
   type        = number
-  default     = 8
 }
 
 variable "scalr_url" {
@@ -94,19 +92,16 @@ variable "providers_cache_share_name" {
 variable "job_timeout" {
   description = "Maximum run time per agent job in seconds"
   type        = number
-  default     = 3600
 }
 
 variable "max_parallel_runs" {
   description = "Maximum number of parallel agent runs"
   type        = number
-  default     = 10
 }
 
 variable "agent_environment" {
   type        = map(string)
   description = "Extra environment variables for the agent container, such as SCALR_AGENT_* options. Values are not secret"
-  default     = {}
 
   validation {
     condition     = length(setintersection(keys(var.agent_environment), ["SCALR_AGENT_TOKEN", "SCALR_AGENT_SINGLE"])) == 0

@@ -6,7 +6,6 @@ variable "vpc_id" {
 variable "allow_all_ingress" {
   description = "Whether to allow all ingress traffic"
   type        = bool
-  default     = false
 }
 
 variable "security_group_name" {
@@ -44,7 +43,6 @@ variable "limit_cpu" {
 variable "limit_memory" {
   type        = number
   description = "The hard limit for the memory used by the task"
-  default     = 8192
 }
 
 variable "efs_file_system_id" {
@@ -68,13 +66,11 @@ variable "providers_cache_access_point_id" {
 variable "task_stop_timeout" {
   type        = number
   description = "Time to wait for the task to stop gracefully before force-killing (in seconds)"
-  default     = 120
 }
 
 variable "agent_environment" {
   type        = map(string)
   description = "Extra environment variables for the agent container, such as SCALR_AGENT_* options. Values are not secret"
-  default     = {}
 
   validation {
     condition     = length(setintersection(keys(var.agent_environment), ["SCALR_AGENT_TOKEN", "SCALR_AGENT_SINGLE"])) == 0

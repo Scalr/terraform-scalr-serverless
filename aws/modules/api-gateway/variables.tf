@@ -27,5 +27,4 @@ variable "additional_allowed_ips" {
 variable "allow_all_ingress" {
   description = "Whether to allow all ingress traffic (overrides IP whitelist)"
   type        = bool
-  default     = false
 }

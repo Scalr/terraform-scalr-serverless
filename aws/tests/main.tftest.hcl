@@ -26,6 +26,7 @@ variables {
   lambda_invoke_arn      = "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:123456789012:function:scalr-agent/invocations"
   lambda_function_name   = "scalr-agent"
   additional_allowed_ips = ["192.0.2.1/32"]
+  allow_all_ingress      = false
 
   # Inputs of the Lambda module runs.
   function_name       = "scalr-agent"

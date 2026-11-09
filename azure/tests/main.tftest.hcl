@@ -18,6 +18,11 @@ variables {
   container_image     = "scalr/agent:latest"
   scalr_url           = "https://example.scalr.io"
   scalr_agent_token   = "token"
+  container_cpu       = 4
+  container_memory_gb = 8
+  job_timeout         = 3600
+  max_parallel_runs   = 10
+  agent_environment   = {}
 }
 
 run "webhook_starts_a_single_run_agent" {
