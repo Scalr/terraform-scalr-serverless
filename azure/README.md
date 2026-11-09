@@ -29,14 +29,7 @@ API Management (APIM) authenticates each webhook using the subscription key in t
 
 ### Webhook delivery and idempotency
 
-Scalr delivers each webhook at least once, with the agent task ID in the `Idempotency-Key` header. It retries a delivery that times out, fails to connect, or returns a non-`2xx` status, up to 3 attempts in total. See the [webhook reference](https://docs.scalr.io/docs/serverless-webhooks#response-and-retries). An endpoint that deduplicates on that header starts one container per task even when Scalr retries.
-
-**This module does not deduplicate.** Azure has no native support for it:
-
-- The Container Apps Job `start` API has no idempotency token. ECS `RunTask` on AWS has `clientToken`.
-- The APIM Consumption tier has no built-in cache, so the policy cannot remember the keys it has seen.
-
-Deduplication would need an extra state store such as Azure Cache for Redis, which costs more than the rest of this deployment. The policy starts one job execution per delivery and returns the Container Apps response unchanged, so a failed start returns a non-`2xx` status and Scalr retries. A retry can follow an execution that already started, for example when the start response takes longer than 15 s or the connection drops. The extra execution starts an agent that finds no task and exits.
+The Container Apps Job start API has no idempotency key, so this module does not deduplicate deliveries. A retried delivery can start an extra agent that finds no task and exits. See the [webhook reference](https://docs.scalr.io/docs/serverless-webhooks#response-and-retries).
 
 ## Prerequisites
 
