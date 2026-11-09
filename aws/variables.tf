@@ -41,13 +41,13 @@ variable "ecs_task_name" {
 variable "ecs_limit_cpu" {
   type        = number
   description = "The hard limit for the cpu unit used by the task"
-  default     = 2048
+  default     = 4096
 }
 
 variable "ecs_limit_memory" {
   type        = number
   description = "The hard limit for the memory used by the task"
-  default     = 4096
+  default     = 8192
 }
 
 variable "ecs_image" {

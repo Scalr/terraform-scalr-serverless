@@ -66,8 +66,8 @@ The first apply takes 10 to 15 minutes because APIM provisioning is slow. Later 
 | `name_prefix` | Prefix for all resource names | `scalr-agent` |
 | `agent_pool_name` | Scalr agent pool name | `azure-serverless` |
 | `container_image` | Agent container image | `scalr/agent:latest` |
-| `container_cpu` | CPU cores per job execution | `2` |
-| `container_memory_gb` | Memory (GB) per job execution | `4` |
+| `container_cpu` | CPU cores per job execution | `4` |
+| `container_memory_gb` | Memory (GB) per job execution. Container Apps requires 2 GB per CPU core | `8` |
 | `job_timeout` | Seconds a job execution can run before Container Apps stops it | `3600` |
 | `max_parallel_runs` | Maximum number of concurrent job executions | `10` |
 

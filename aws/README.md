@@ -71,8 +71,8 @@ The apply creates the AWS resources and the Scalr agent pool, and registers the 
 | `vpc_name` | VPC name prefix | `scalr-agent` |
 | `ecs_cluster_name` | ECS cluster name | `scalr-agent-pool-cluster` |
 | `ecs_image` | Container image | `scalr/agent:latest` |
-| `ecs_limit_cpu` | ECS task CPU units (1024 = 1 vCPU) | `2048` |
-| `ecs_limit_memory` | ECS task memory (MB) | `4096` |
+| `ecs_limit_cpu` | ECS task CPU units (1024 = 1 vCPU) | `4096` |
+| `ecs_limit_memory` | ECS task memory (MB). With 4 vCPU, Fargate accepts 8192 to 30720 | `8192` |
 | `ecs_task_stop_timeout` | Seconds ECS waits for the agent to stop before it kills the container | `120` |
 | `lambda_timeout` | Lambda timeout (seconds) | `30` |
 | `lambda_memory_size` | Lambda memory (MB) | `128` |

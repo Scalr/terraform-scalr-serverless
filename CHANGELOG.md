@@ -22,6 +22,7 @@ Each entry names the platform it affects. A breaking entry says what to do befor
 
 - **AWS and Azure:** agent containers use `SCALR_AGENT_TOKEN`, `SCALR_AGENT_SINGLE`, and `SCALR_AGENT_DRIVER`. The agent deprecates the `SCALR_`-prefixed names and removes them in agent 2.0.0. `SCALR_URL` keeps its name because the agent reads only that name.
 - **AWS:** the default `lambda_runtime` is `python3.13`.
+- **AWS and Azure:** agent containers default to 4 vCPU and 8 GB (`ecs_limit_cpu = 4096` and `ecs_limit_memory = 8192` on AWS, `container_cpu = 4` and `container_memory_gb = 8` on Azure), up from 2 vCPU and 4 GB. This doubles the compute cost per run. Set the variables to keep the old size.
 - **AWS:** the agent task no longer sets `SCALR_AGENT_TIMEOUT`. The agent has no such option, so the variable had no effect. `ecs_task_stop_timeout` still sets the ECS stop timeout.
 
 ### Fixed

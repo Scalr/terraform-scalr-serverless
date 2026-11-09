@@ -44,7 +44,7 @@ variable "limit_cpu" {
 variable "limit_memory" {
   type        = number
   description = "The hard limit for the memory used by the task"
-  default     = 2048
+  default     = 8192
 }
 
 variable "efs_file_system_id" {

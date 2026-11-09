@@ -27,13 +27,13 @@ variable "container_image" {
 variable "container_cpu" {
   description = "CPU cores for each agent container"
   type        = number
-  default     = 2
+  default     = 4
 }
 
 variable "container_memory_gb" {
   description = "Memory in GB for each agent container"
   type        = number
-  default     = 4
+  default     = 8
 }
 
 variable "scalr_url" {
