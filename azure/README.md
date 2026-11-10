@@ -25,7 +25,9 @@ flowchart LR
     job -. "connects back" .-> scalr
 ```
 
-API Management (APIM) authenticates each webhook using the subscription key in the `Ocp-Apim-Subscription-Key` header. It uses its managed identity to start a Container Apps Job execution and returns. The run executes in that separate container, not in API Management. The agent container runs in single-run mode (`SCALR_AGENT_SINGLE=true`). It starts in 5 to 15 seconds, connects to Scalr, executes the run, and exits. The Azure Files shares keep providers and modules between runs, so later runs skip those downloads.
+API Management (APIM) authenticates each webhook using the subscription key in the `Ocp-Apim-Subscription-Key` header. It uses its managed identity to start a Container Apps Job execution and returns. The run executes in that separate container, not in API Management.
+
+The policy also sets the agent options that Scalr sends in the `agent_environment` field of the webhook payload on the agent container. It accepts only `SCALR_AGENT_*` options and never `SCALR_AGENT_TOKEN` or `SCALR_AGENT_SINGLE`. Scalr uses it to pass `SCALR_AGENT_TASK_ID`: the agent claims only that task and exits with code 0 when the task is already taken, canceled, or finished. A job start with options replaces the job's container for that execution, so the policy sends the whole container, built from the same settings as the job. Each response reports the launcher version in the `Scalr-Launcher-Version` header, which Scalr shows on the agent pool. The agent container runs in single-run mode (`SCALR_AGENT_SINGLE=true`). It starts in 5 to 15 seconds, connects to Scalr, executes the run, and exits. The Azure Files shares keep providers and modules between runs, so later runs skip those downloads.
 
 ### Webhook delivery and idempotency
 

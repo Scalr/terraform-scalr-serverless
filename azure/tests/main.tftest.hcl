@@ -69,4 +69,26 @@ run "storage_account_enables_the_cache" {
     condition     = length(azurerm_container_app_job.scalr_agent.template[0].volume) == 2
     error_message = "With a storage account, the job must mount both cache shares."
   }
+
+  # A job start with agent options replaces the container with local.agent_container.
+  assert {
+    condition = (
+      toset([for env in azurerm_container_app_job.scalr_agent.template[0].container[0].env : env.name]) ==
+      toset([for env in local.agent_container.env : env.name])
+    )
+    error_message = "The start override must set the same environment variables as the job template."
+  }
+
+  assert {
+    condition = (
+      toset([for mount in azurerm_container_app_job.scalr_agent.template[0].container[0].volume_mounts : mount.path]) ==
+      toset([for mount in local.agent_container.volumeMounts : mount.mountPath])
+    )
+    error_message = "The start override must mount the same cache shares as the job template."
+  }
+
+  assert {
+    condition     = strcontains(azurerm_api_management_api_policy.webhook.xml_content, "<value>${local.launcher_version}</value>")
+    error_message = "The webhook response must report the launcher version."
+  }
 }
