@@ -34,7 +34,7 @@ Scalr delivers each webhook at least once, with the agent task ID in the `Idempo
 
 The Lambda function passes the SHA-256 hash of `Idempotency-Key` to ECS `RunTask` as `clientToken`. ECS remembers a client token for up to 24 hours per cluster and returns the original task for repeated calls, so one key starts at most one Fargate task. The function follows the handler in the [manual setup guide](https://docs.scalr.io/docs/serverless-aws-fargate).
 
-The function also passes the `Idempotency-Key` value, the agent task ID, to the agent container as `SCALR_AGENT_TASK_ID`. The agent claims only that task, so it cannot take a task that another container was started for. When the task is already taken, canceled, or finished, the agent exits with code 0 instead of waiting idle. An agent that does not support the option ignores the variable and claims any waiting task of the pool.
+The function also sets the agent options that Scalr sends in the `agent_environment` field of the webhook payload on the agent container. It accepts only `SCALR_AGENT_*` options and never `SCALR_AGENT_TOKEN` or `SCALR_AGENT_SINGLE`. Scalr uses it to pass `SCALR_AGENT_TASK_ID`: the agent claims only that task, so it cannot take a task that another container was started for, and it exits with code 0 when the task is already taken, canceled, or finished. Each response reports the function version in the `Scalr-Launcher-Version` header, which Scalr shows on the agent pool.
 
 The function returns:
 
@@ -154,8 +154,6 @@ curl -s -X POST "$WEBHOOK_URL" \
 ```
 
 A successful request returns `202` with the ECS task ARN. Send the request twice with the same `Idempotency-Key`. The second call returns the same task ARN and does not start a second task.
-
-The agent treats the key as the ID of the task to claim. With a made-up key it finds no such task and exits with code 0, which still confirms that the task starts and the agent connects to Scalr. To run a real task, use the ID of an agent task that waits in the pool.
 
 ### Check ECS task status
 

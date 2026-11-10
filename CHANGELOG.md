@@ -18,7 +18,8 @@ Each entry names the platform it affects. A breaking entry says what to do befor
 
 - **AWS:** the Lambda function passes the SHA-256 hash of the webhook `Idempotency-Key` header to ECS `RunTask` as `clientToken`. Webhook retries for the same agent task no longer start extra Fargate tasks.
 - **AWS and Azure:** the `agent_environment` variable sets extra environment variables, such as `SCALR_AGENT_*` options, on the agent container.
-- **AWS:** the Lambda function passes the `Idempotency-Key` value, the agent task ID, to the agent container as `SCALR_AGENT_TASK_ID`. The agent claims only that task and exits when it is already taken, canceled, or finished, so a container no longer takes the task of another container or waits idle. Agents without the option ignore the variable.
+- **AWS:** the Lambda function sets the agent options from the `agent_environment` field of the webhook payload on the agent container, limited to `SCALR_AGENT_*` options other than `SCALR_AGENT_TOKEN` and `SCALR_AGENT_SINGLE`. Scalr passes `SCALR_AGENT_TASK_ID`, so the agent claims only the task it was started for and exits when that task is already taken, canceled, or finished. Agents without the option ignore it.
+- **AWS:** the webhook response reports the launcher version in the `Scalr-Launcher-Version` header, starting with `0.1.0`. Scalr shows it on the agent pool.
 
 ### Changed
 
