@@ -106,10 +106,11 @@ run "lambda_targets_the_agent_task" {
     condition = aws_lambda_function.scalr_webhook.environment[0].variables == tomap({
       CLUSTER         = "scalr-agent-pool-cluster"
       TASK_DEFINITION = "arn:aws:ecs:us-east-1:123456789012:task-definition/scalr-agent-run:1"
+      CONTAINER_NAME  = "scalr-agent-run"
       SECURITY_GROUP  = "sg-0123456789abcdef0"
       SUBNET_IDS      = "subnet-a,subnet-b"
     })
-    error_message = "The Lambda function must receive the agent cluster, task definition, and network."
+    error_message = "The Lambda function must receive the agent cluster, task definition, container name, and network."
   }
 
   assert {
