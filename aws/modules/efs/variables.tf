@@ -22,4 +22,4 @@ variable "provisioned_throughput" {
   description = "Provisioned throughput for EFS in MiB/s"
   type        = number
   default     = 100
-} 
+}

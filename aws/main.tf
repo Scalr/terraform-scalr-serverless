@@ -1,8 +1,9 @@
 terraform {
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
+      source = "hashicorp/aws"
+      # The python3.13 Lambda runtime needs 5.76.0 or later.
+      version = "~> 5.76"
     }
     scalr = {
       source = "scalr/scalr"
@@ -45,9 +46,9 @@ module "api_gateway" {
 module "networking" {
   source = "./modules/networking"
 
-  name = var.vpc_name
-  cidr = "10.0.0.0/16"
-  azs = slice(data.aws_availability_zones.available.names, 0, 2)
+  name                = var.vpc_name
+  cidr                = "10.0.0.0/16"
+  azs                 = slice(data.aws_availability_zones.available.names, 0, 2)
   public_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24"]
 }
 
@@ -77,7 +78,7 @@ module "lambda" {
 
 module "agent_pool" {
   source = "../modules/scalr/agent-pool"
-  
+
   webhook_url = module.api_gateway.url
   webhook_headers = [
     {
@@ -104,12 +105,13 @@ module "ecs" {
   task_name         = var.ecs_task_name
   scalr_url         = module.agent_pool.scalr_url
   scalr_agent_token = module.agent_pool.agent_token
+  agent_environment = var.agent_environment
 
   security_group_name = var.ecs_security_group_name
   task_stop_timeout   = var.ecs_task_stop_timeout
-  
+
   # EFS configuration for persistent cache
-  efs_file_system_id                = module.efs.file_system_id
-  terraform_cache_access_point_id   = module.efs.terraform_cache_access_point_id
-  providers_cache_access_point_id   = module.efs.providers_cache_access_point_id
+  efs_file_system_id              = module.efs.file_system_id
+  terraform_cache_access_point_id = module.efs.terraform_cache_access_point_id
+  providers_cache_access_point_id = module.efs.providers_cache_access_point_id
 }

@@ -1,53 +1,74 @@
 # Scalr Serverless Agent Pool
 
-Terraform/OpenTofu configurations for running Scalr agent pools as serverless workloads on **AWS** or **Azure**.
+Product documentation: [Serverless agent pools](https://docs.scalr.io/docs/serverless-agents-pools).
 
-Each webhook from Scalr spins up an ephemeral container that executes a single Terraform run and exits. Containers scale to zero when idle — you only pay for actual compute time.
+This repository holds Terraform and OpenTofu configurations that deploy a Scalr serverless agent pool on **AWS** or **Azure**.
+
+Each webhook from Scalr starts a container that executes one Terraform run and exits. No container runs while the pool is idle, so you pay only for the compute time of the runs.
 
 ## Architecture
 
-```
-Scalr.io ── webhook ──> API Gateway ── auth ──> Ephemeral Container (scalr/agent)
-                                                       |
-                                                 Persistent Cache (providers & modules)
+Solid arrows show how a webhook starts an agent and how the agent accesses its cache. The dotted arrow shows the agent's separate connection back to Scalr during the run.
+
+```mermaid
+---
+config:
+  flowchart:
+    nodeSpacing: 24
+    rankSpacing: 24
+    padding: 8
+---
+flowchart LR
+    accTitle: Serverless agent pool request flow
+    accDescr: Scalr sends a webhook to an API gateway. The webhook endpoint authenticates the request and starts a single-run agent container. The agent mounts a persistent provider and module cache and connects back to Scalr to execute the run.
+    scalr[Scalr] -- "webhook" --> gateway[Webhook endpoint<br/>authenticates request]
+    gateway -- "starts" --> agent[Agent container<br/>executes one run]
+    agent -- "mounts" --> cache[(Persistent cache<br/>stores downloads)]
+    agent -. "connects back" .-> scalr
 ```
 
-1. Scalr needs to execute a Terraform run and sends a webhook to the configured endpoint
-2. The API gateway authenticates the request via API key
-3. An ephemeral container starts with the Scalr agent (`SCALR_SINGLE=true`)
-4. The agent connects to Scalr, executes the run, and exits
-5. Persistent storage caches Terraform providers and modules across runs
+1. Scalr queues a Terraform run and sends a webhook to the configured endpoint.
+2. The API gateway authenticates the request with an API key.
+3. The webhook endpoint starts a container with the Scalr agent in single-run mode (`SCALR_AGENT_SINGLE=true`), through Lambda on AWS or directly on Azure.
+4. The agent connects to Scalr, executes the run, and exits.
+5. The persistent cache keeps Terraform providers and modules between runs.
 
 ## Platforms
 
 | | AWS | Azure |
 |---|---|---|
-| **Webhook gateway** | API Gateway (REST API) + Lambda | API Management (Consumption) |
-| **Compute** | ECS Fargate | Container Apps Job |
-| **Cache storage** | EFS | Azure Files |
-| **Cold start** | ~10-20s | ~5-15s |
-| **Docs** | [`aws/README.md`](aws/README.md) | [`azure/README.md`](azure/README.md) |
+| **Webhook gateway** | [API Gateway](https://aws.amazon.com/api-gateway/) (REST API) and [Lambda](https://aws.amazon.com/lambda/) | [API Management](https://azure.microsoft.com/en-us/products/api-management) (Consumption) |
+| **Compute** | [ECS Fargate](https://aws.amazon.com/fargate/) | [Container Apps Job](https://learn.microsoft.com/en-us/azure/container-apps/jobs) |
+| **Cache storage** | [EFS](https://aws.amazon.com/efs/) | [Azure Files](https://azure.microsoft.com/en-us/products/storage/files) |
+| **Agent start time** | 10 to 20 s | 5 to 15 s |
+| **Webhook idempotency** | Supported through the [`Idempotency-Key`](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) header. Webhook retries cannot start duplicate containers | Not supported. The Container Apps Job start API has no idempotency key, so webhook retries can start extra agents |
+| **Setup and troubleshooting** | [AWS guide](aws/README.md) | [Azure guide](azure/README.md) |
 
 ## Prerequisites
 
-- Terraform >= 1.0 or OpenTofu
-- Scalr account with API access (`SCALR_HOSTNAME` and `SCALR_TOKEN` environment variables)
-- Cloud provider CLI authenticated (AWS CLI or Azure CLI)
+- Terraform 1.0 or later, or OpenTofu.
+- A Scalr account and an API token. The Scalr provider reads them from the `SCALR_HOSTNAME` and `SCALR_TOKEN` environment variables.
+- The AWS CLI or the Azure CLI, authenticated to the target account.
 
-## Quick Start
+## Quick start
 
-```bash
-cd aws    # or: cd azure
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars
-tofu init && tofu apply
-```
+1. Clone a release and change to the platform directory. Replace `{version}` with a tag from the [releases page](https://github.com/Scalr/terraform-scalr-serverless/releases), such as `v0.1.0`:
 
-See the platform-specific README for detailed configuration, cost estimates, and troubleshooting.
+   ```shell
+   git clone --branch {version} https://github.com/Scalr/terraform-scalr-serverless.git
+   cd terraform-scalr-serverless/aws    # or: cd terraform-scalr-serverless/azure
+   ```
 
-## Custom Container Image
+2. Set the variables. The Azure directory provides `terraform.tfvars.example` to copy to `terraform.tfvars`. Every AWS variable has a default, so create `terraform.tfvars` only to override one.
+3. Run `tofu init`, then `tofu apply`. The apply creates the cloud resources and the Scalr agent pool, and registers the webhook endpoint with Scalr.
 
-Build your own image with pre-cached providers:
+The platform guides cover each variable, cost estimates, and troubleshooting.
+
+To upgrade, read the [changelog](CHANGELOG.md) entries between your version and the new one, check out the new tag, and run `tofu apply`. Releases follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor release can include breaking changes.
+
+## Custom container image
+
+To skip provider downloads on the first run, build an image that contains the providers and set it as the container image variable:
 
 ```dockerfile
 FROM scalr/agent:latest
@@ -56,11 +77,13 @@ COPY providers/ /terraform-cache/
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Test your changes
-4. Submit a pull request
+1. Fork the repository.
+2. Create a feature branch.
+3. Install [uv](https://docs.astral.sh/uv/), [just](https://just.systems/), [OpenTofu](https://opentofu.org/), and [lychee](https://lychee.cli.rs/), then run `just setup`. The command installs the Python tools and a git hook that runs the checks on each commit.
+4. Run `just lint`, `just validate`, and `just test` to check your changes. CI runs the same checks.
+5. For a change that affects deployments, add an entry to the Unreleased section of [CHANGELOG.md](CHANGELOG.md).
+6. Open a pull request. Maintainers publish releases as described in [RELEASING.md](RELEASING.md).
 
 ## License
 
-MIT License - see LICENSE file for details
+MIT License. See [LICENSE](LICENSE).

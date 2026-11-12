@@ -41,13 +41,13 @@ variable "ecs_task_name" {
 variable "ecs_limit_cpu" {
   type        = number
   description = "The hard limit for the cpu unit used by the task"
-  default     = 2048
+  default     = 4096
 }
 
 variable "ecs_limit_memory" {
   type        = number
   description = "The hard limit for the memory used by the task"
-  default     = 4096
+  default     = 8192
 }
 
 variable "ecs_image" {
@@ -71,8 +71,8 @@ variable "lambda_handler" {
 
 variable "lambda_runtime" {
   type        = string
-  description = "Lambda handler runtime"
-  default     = "python3.11"
+  description = "Lambda Python runtime, python3.11 or later"
+  default     = "python3.13"
 }
 
 variable "lambda_timeout" {
@@ -88,13 +88,19 @@ variable "lambda_memory_size" {
 }
 
 variable "vpc_name" {
-  type = string
+  type        = string
   description = "VPC Network name"
-  default = "scalr-agent"
+  default     = "scalr-agent"
 }
 
 variable "ecs_task_stop_timeout" {
   type        = number
   description = "Time to wait for the ECS task to stop gracefully before force-killing (in seconds)"
   default     = 120
+}
+
+variable "agent_environment" {
+  type        = map(string)
+  description = "Extra environment variables for the agent container, such as SCALR_AGENT_* options. Values are not secret"
+  default     = {}
 }

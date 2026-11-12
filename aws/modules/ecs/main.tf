@@ -13,9 +13,9 @@ resource "aws_security_group" "ecs_tasks" {
   }
 
   egress {
-    from_port = 0
-    to_port   = 0
-    protocol  = "-1"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
@@ -52,7 +52,7 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
 }
 
 # The agent token is stored as a plaintext secret (raw string, not JSON) so ECS
-# injects it verbatim as SCALR_TOKEN.
+# injects it verbatim as SCALR_AGENT_TOKEN.
 resource "aws_secretsmanager_secret" "scalr_agent_token" {
   name_prefix = "${var.task_name}-token-"
 }
@@ -110,7 +110,7 @@ resource "aws_iam_role_policy" "ecs_task_role_policy" {
         ]
         Resource = "${aws_cloudwatch_log_group.ecs_logs.arn}:*"
       }
-    ], var.efs_file_system_id != null ? [
+      ], var.efs_file_system_id != null ? [
       {
         Effect = "Allow"
         Action = [
@@ -129,20 +129,37 @@ resource "aws_ecs_cluster" "main" {
 }
 
 
+locals {
+  # var.agent_environment overrides these defaults; its validation keeps the token and single-run mode.
+  agent_environment = merge(
+    {
+      SCALR_URL              = var.scalr_url
+      SCALR_AGENT_SINGLE     = "true"
+      SCALR_AGENT_DRIVER     = "local"
+      SCALR_AGENT_LOG_FORMAT = "json"
+    },
+    var.efs_file_system_id != null ? {
+      TF_PLUGIN_CACHE_DIR = "/terraform-cache"
+      TF_DATA_DIR         = "/providers-cache"
+    } : {},
+    var.agent_environment,
+  )
+}
+
 resource "aws_ecs_task_definition" "webhook" {
-  family             = var.task_name
-  network_mode       = "awsvpc"
+  family                   = var.task_name
+  network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                = var.limit_cpu
-  memory             = var.limit_memory
-  execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn      = aws_iam_role.ecs_task_role.arn
+  cpu                      = var.limit_cpu
+  memory                   = var.limit_memory
+  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   dynamic "volume" {
     for_each = var.efs_file_system_id != null ? [1] : []
     content {
       name = "terraform-cache"
-      
+
       efs_volume_configuration {
         file_system_id     = var.efs_file_system_id
         root_directory     = "/"
@@ -158,7 +175,7 @@ resource "aws_ecs_task_definition" "webhook" {
     for_each = var.efs_file_system_id != null ? [1] : []
     content {
       name = "providers-cache"
-      
+
       efs_volume_configuration {
         file_system_id     = var.efs_file_system_id
         root_directory     = "/"
@@ -178,38 +195,12 @@ resource "aws_ecs_task_definition" "webhook" {
 
       secrets = [
         {
-          name      = "SCALR_TOKEN"
+          name      = "SCALR_AGENT_TOKEN"
           valueFrom = aws_secretsmanager_secret.scalr_agent_token.arn
         }
       ]
 
-      environment = concat([
-        {
-          name  = "SCALR_URL"
-          value = var.scalr_url
-        },
-        {
-          name  = "SCALR_SINGLE"
-          value = "true"
-        },
-        {
-          name  = "SCALR_DRIVER"
-          value = "local"
-        },
-        {
-          name  = "SCALR_AGENT_TIMEOUT"
-          value = tostring(var.task_stop_timeout - 30)  # Leave buffer for graceful shutdown
-        }
-      ], var.efs_file_system_id != null ? [
-        {
-          name  = "TF_PLUGIN_CACHE_DIR"
-          value = "/terraform-cache"
-        },
-        {
-          name  = "TF_DATA_DIR"
-          value = "/providers-cache"
-        }
-      ] : [])
+      environment = [for name, value in local.agent_environment : { name = name, value = value }]
 
       mountPoints = var.efs_file_system_id != null ? [
         {

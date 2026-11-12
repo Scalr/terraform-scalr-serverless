@@ -1,5 +1,5 @@
 variable "environment" {
-  type = string
+  type        = string
   description = "API Gateway Environment name"
 }
 
@@ -14,7 +14,7 @@ variable "lambda_function_name" {
 }
 
 variable "name" {
-  type = string
+  type        = string
   description = "Name of the API gateway"
 }
 
@@ -27,6 +27,4 @@ variable "additional_allowed_ips" {
 variable "allow_all_ingress" {
   description = "Whether to allow all ingress traffic (overrides IP whitelist)"
   type        = bool
-  default     = false
 }
-

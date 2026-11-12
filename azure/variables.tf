@@ -31,13 +31,13 @@ variable "container_image" {
 variable "container_cpu" {
   description = "CPU cores for each agent container"
   type        = number
-  default     = 2
+  default     = 4
 }
 
 variable "container_memory_gb" {
   description = "Memory in GB for each agent container"
   type        = number
-  default     = 4
+  default     = 8
 }
 
 variable "job_timeout" {
@@ -50,4 +50,10 @@ variable "max_parallel_runs" {
   description = "Maximum number of parallel agent runs"
   type        = number
   default     = 10
+}
+
+variable "agent_environment" {
+  type        = map(string)
+  description = "Extra environment variables for the agent container, such as SCALR_AGENT_* options. Values are not secret"
+  default     = {}
 }

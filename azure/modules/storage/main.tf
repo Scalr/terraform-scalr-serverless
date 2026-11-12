@@ -5,12 +5,12 @@ resource "azurerm_storage_account" "cache" {
   # checkov:skip=CKV2_AZURE_33:Private endpoint adds complexity not justified for cache storage
   # checkov:skip=CKV2_AZURE_40:Shared Key auth required for ACA environment storage mounts
   # checkov:skip=CKV2_AZURE_41:SAS tokens not used — expiration policy set but checkov may not detect it
-  name                          = substr(replace(lower("${var.name}cache"), "-", ""), 0, 24)
-  resource_group_name           = var.resource_group_name
-  location                      = var.location
-  account_tier                  = "Standard"
-  account_replication_type      = "LRS"
-  min_tls_version               = "TLS1_2"
+  name                            = substr(replace(lower("${var.name}cache"), "-", ""), 0, 24)
+  resource_group_name             = var.resource_group_name
+  location                        = var.location
+  account_tier                    = "Standard"
+  account_replication_type        = "LRS"
+  min_tls_version                 = "TLS1_2"
   allow_nested_items_to_be_public = false
 
   blob_properties {
@@ -38,13 +38,13 @@ resource "azurerm_storage_account_queue_properties" "cache" {
 }
 
 resource "azurerm_storage_share" "terraform_cache" {
-  name                = "terraform-cache"
-  storage_account_id  = azurerm_storage_account.cache.id
-  quota               = 50
+  name               = "terraform-cache"
+  storage_account_id = azurerm_storage_account.cache.id
+  quota              = 50
 }
 
 resource "azurerm_storage_share" "providers_cache" {
-  name                = "providers-cache"
-  storage_account_id  = azurerm_storage_account.cache.id
-  quota               = 50
+  name               = "providers-cache"
+  storage_account_id = azurerm_storage_account.cache.id
+  quota              = 50
 }
