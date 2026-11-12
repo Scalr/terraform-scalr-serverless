@@ -81,6 +81,7 @@ resource "aws_lambda_function" "scalr_webhook" {
       SUBNET_IDS      = join(",", var.subnet_ids)
       CLUSTER         = var.cluster_name
       TASK_DEFINITION = var.task_definition_arn
+      CONTAINER_NAME  = var.container_name
       SECURITY_GROUP  = var.security_group_id
     }
   }

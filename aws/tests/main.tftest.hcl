@@ -32,6 +32,7 @@ variables {
   function_name       = "scalr-agent"
   cluster_name        = "scalr-agent-pool-cluster"
   task_definition_arn = "arn:aws:ecs:us-east-1:123456789012:task-definition/scalr-agent-run:1"
+  container_name      = "scalr-agent-run"
   security_group_id   = "sg-0123456789abcdef0"
   subnet_ids          = ["subnet-a", "subnet-b"]
   source_file         = "lambda_function.py"

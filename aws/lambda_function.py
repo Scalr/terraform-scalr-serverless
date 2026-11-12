@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
 import logging
 import os
+import re
 from typing import TYPE_CHECKING, TypedDict
 
 import boto3
@@ -14,8 +17,16 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 if TYPE_CHECKING:
     from types_boto3_ecs import ECSClient
+    from types_boto3_ecs.type_defs import KeyValuePairTypeDef, TaskOverrideTypeDef
 
 LOG = logging.getLogger(__name__)
+
+LAUNCHER_VERSION = "0.1.0"
+"""Reported to Scalr in the Scalr-Launcher-Version response header. Bump it with each release."""
+
+AGENT_OPTION_NAME = re.compile(r"SCALR_AGENT_[A-Z0-9_]+")
+RESERVED_AGENT_OPTIONS = frozenset({"SCALR_AGENT_TOKEN", "SCALR_AGENT_SINGLE"})
+"""Set by the task definition. A webhook must not change the pool or the single-run mode."""
 
 # One short attempt keeps the response within Scalr's 15-second webhook timeout.
 ECS: ECSClient = boto3.client(
@@ -28,6 +39,8 @@ class ApiGatewayProxyEvent(TypedDict, total=False):
     """The part of an API Gateway REST proxy event that the handler reads."""
 
     headers: dict[str, str] | None
+    body: str | None
+    isBase64Encoded: bool
 
 
 class TaskRequested(TypedDict):
@@ -47,9 +60,34 @@ class ApiGatewayProxyResponse(TypedDict):
 def respond(status_code: int, body: TaskRequested | WebhookError) -> ApiGatewayProxyResponse:
     return {
         "statusCode": status_code,
-        "headers": {"Content-Type": "application/json"},
+        "headers": {"Content-Type": "application/json", "Scalr-Launcher-Version": LAUNCHER_VERSION},
         "body": json.dumps(body),
     }
+
+
+def agent_environment(event: ApiGatewayProxyEvent) -> list[KeyValuePairTypeDef]:
+    """Return the agent options from the webhook's `agent_environment` that may be set."""
+    body = event.get("body") or "{}"
+    try:
+        if event.get("isBase64Encoded"):
+            body = base64.b64decode(body).decode()
+        options = json.loads(body).get("agent_environment") or {}
+    except (binascii.Error, UnicodeDecodeError, ValueError, AttributeError):
+        return []
+    if not isinstance(options, dict):
+        return []
+
+    environment: list[KeyValuePairTypeDef] = []
+    for name, value in options.items():
+        if (
+            not AGENT_OPTION_NAME.fullmatch(name)
+            or name in RESERVED_AGENT_OPTIONS
+            or not isinstance(value, str)
+        ):
+            LOG.warning("Ignored agent option from the webhook", extra={"option_name": name})
+            continue
+        environment.append({"name": name, "value": value})
+    return environment
 
 
 def lambda_handler(event: ApiGatewayProxyEvent, _context: object) -> ApiGatewayProxyResponse:
@@ -61,6 +99,15 @@ def lambda_handler(event: ApiGatewayProxyEvent, _context: object) -> ApiGatewayP
         LOG.warning("Rejected webhook without Idempotency-Key")
         return respond(400, {"error": "Idempotency-Key header is required"})
     log_fields = {"idempotency_key": idempotency_key}
+
+    # Scalr passes agent options, such as SCALR_AGENT_TASK_ID, with each webhook.
+    overrides: TaskOverrideTypeDef = {}
+    if environment := agent_environment(event):
+        overrides = {
+            "containerOverrides": [
+                {"name": os.environ["CONTAINER_NAME"], "environment": environment}
+            ]
+        }
 
     try:
         result = ECS.run_task(
@@ -77,6 +124,7 @@ def lambda_handler(event: ApiGatewayProxyEvent, _context: object) -> ApiGatewayP
                     "assignPublicIp": "ENABLED",
                 }
             },
+            overrides=overrides,
         )
     except (BotoCoreError, ClientError):
         LOG.exception("ECS RunTask request failed", extra=log_fields)

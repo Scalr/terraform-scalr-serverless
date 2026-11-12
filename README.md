@@ -29,7 +29,7 @@ flowchart LR
 
 1. Scalr queues a Terraform run and sends a webhook to the configured endpoint.
 2. The API gateway authenticates the request with an API key.
-3. The webhook endpoint starts a container with the Scalr agent in single-run mode (`SCALR_AGENT_SINGLE=true`), through Lambda on AWS or directly on Azure.
+3. The webhook endpoint starts a separate container with the Scalr agent in single-run mode (`SCALR_AGENT_SINGLE=true`): a Lambda function starts an ECS Fargate task on AWS, and API Management starts a Container Apps Job on Azure. The endpoint only starts the container and returns, and the run executes in the container.
 4. The agent connects to Scalr, executes the run, and exits.
 5. The persistent cache keeps Terraform providers and modules between runs.
 

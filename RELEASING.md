@@ -14,8 +14,9 @@ Before 1.0.0, a breaking change bumps the minor version, and everything else bum
 
 1. On an up-to-date `main`, check that CI passes and run `just lint`, `just validate`, and `just test`.
 2. In `CHANGELOG.md`, rename `## Unreleased` to `## [X.Y.Z] - YYYY-MM-DD`, then add a new empty `## Unreleased` section above it.
-3. Commit the changelog as `Release vX.Y.Z` through a pull request, and merge it.
-4. Tag the merge commit on `main` and push the tag:
+3. Set `LAUNCHER_VERSION` in `aws/lambda_function.py` and `launcher_version` in `azure/modules/webhook/main.tf` to `X.Y.Z`. Scalr shows it on the agent pool and warns about older launchers.
+4. Commit the changelog and the version as `Release vX.Y.Z` through a pull request, and merge it.
+5. Tag the merge commit on `main` and push the tag:
 
    ```shell
    git switch main && git pull
@@ -23,7 +24,7 @@ Before 1.0.0, a breaking change bumps the minor version, and everything else bum
    git push origin vX.Y.Z
    ```
 
-5. Create the GitHub release from the tag, with the changelog section as its notes:
+6. Create the GitHub release from the tag, with the changelog section as its notes:
 
    ```shell
    gh release create vX.Y.Z --title vX.Y.Z --notes-file {notes_file}

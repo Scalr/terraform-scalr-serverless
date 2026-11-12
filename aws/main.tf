@@ -67,6 +67,7 @@ module "lambda" {
   subnet_ids          = module.networking.public_subnet_ids
   cluster_name        = module.ecs.cluster_name
   task_definition_arn = module.ecs.task_definition_arn
+  container_name      = module.ecs.container_name
   security_group_id   = module.ecs.security_group_id
   function_name       = var.lambda_function_name
   handler             = var.lambda_handler

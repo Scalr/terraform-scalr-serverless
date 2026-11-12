@@ -50,10 +50,47 @@ resource "azurerm_api_management_api_policy" "webhook" {
           <set-header name="Content-Type" exists-action="override">
             <value>application/json</value>
           </set-header>
-          <set-body>{}</set-body>
+          <set-body>@{
+            // Scalr sends agent options, such as SCALR_AGENT_TASK_ID, with each webhook.
+            JObject options = null;
+            try {
+              options = context.Request.Body.As<JObject>(preserveContent: true)["agent_environment"] as JObject;
+            } catch {
+              return "{}";
+            }
+            if (options == null) {
+              return "{}";
+            }
+
+            var allowed = new JArray();
+            foreach (var option in options.Properties()) {
+              if (option.Value.Type != JTokenType.String) { continue; }
+              if (!Regex.IsMatch(option.Name, "^SCALR_AGENT_[A-Z0-9_]+$")) { continue; }
+              if (option.Name == "SCALR_AGENT_TOKEN" || option.Name == "SCALR_AGENT_SINGLE") { continue; }
+              allowed.Add(new JObject(new JProperty("name", option.Name), new JProperty("value", (string)option.Value)));
+            }
+            if (allowed.Count == 0) {
+              return "{}";
+            }
+
+            // A start override replaces the job's container, so it repeats the whole container.
+            var container = JObject.Parse(Encoding.UTF8.GetString(Convert.FromBase64String("${base64encode(jsonencode(local.agent_container))}")));
+            var env = (JArray)container["env"];
+            foreach (JObject item in allowed) {
+              foreach (var existing in env.Where(e => (string)e["name"] == (string)item["name"]).ToList()) {
+                existing.Remove();
+              }
+              env.Add(item);
+            }
+            return new JObject(new JProperty("containers", new JArray(container))).ToString(Newtonsoft.Json.Formatting.None);
+          }</set-body>
           <authentication-managed-identity resource="https://management.azure.com/" />
         </send-request>
-        <return-response response-variable-name="job-response" />
+        <return-response response-variable-name="job-response">
+          <set-header name="Scalr-Launcher-Version" exists-action="override">
+            <value>${local.launcher_version}</value>
+          </set-header>
+        </return-response>
       </inbound>
     </policies>
   XML
@@ -120,6 +157,29 @@ locals {
     } : {},
     var.agent_environment,
   )
+
+  # The agent container as the Container Apps API describes it. A job start with agent options
+  # from the webhook sends it as an override, which replaces the job's container, so it must
+  # match the template of azurerm_container_app_job.scalr_agent.
+  agent_container = {
+    name  = "scalr-agent"
+    image = var.container_image
+    resources = {
+      cpu    = var.container_cpu
+      memory = "${var.container_memory_gb}Gi"
+    }
+    env = concat(
+      [{ name = "SCALR_AGENT_TOKEN", secretRef = "scalr-token" }],
+      [for name, value in local.agent_environment : { name = name, value = value }],
+    )
+    volumeMounts = local.use_file_cache ? [
+      { volumeName = "terraform-cache", mountPath = "/terraform-cache" },
+      { volumeName = "providers-cache", mountPath = "/providers-cache" },
+    ] : []
+  }
+
+  # Reported to Scalr in the Scalr-Launcher-Version response header. Bump it with each release.
+  launcher_version = "0.1.0"
 }
 
 resource "azurerm_container_app_job" "scalr_agent" {
@@ -158,12 +218,13 @@ resource "azurerm_container_app_job" "scalr_agent" {
     }
   }
 
+  # Keep in sync with local.agent_container, which webhook starts with agent options send instead.
   template {
     container {
-      name   = "scalr-agent"
-      image  = var.container_image
-      cpu    = var.container_cpu
-      memory = "${var.container_memory_gb}Gi"
+      name   = local.agent_container.name
+      image  = local.agent_container.image
+      cpu    = local.agent_container.resources.cpu
+      memory = local.agent_container.resources.memory
 
       env {
         name        = "SCALR_AGENT_TOKEN"
