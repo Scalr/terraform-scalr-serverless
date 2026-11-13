@@ -42,9 +42,3 @@ resource "azurerm_storage_share" "terraform_cache" {
   storage_account_id = azurerm_storage_account.cache.id
   quota              = 50
 }
-
-resource "azurerm_storage_share" "providers_cache" {
-  name               = "providers-cache"
-  storage_account_id = azurerm_storage_account.cache.id
-  quota              = 50
-}

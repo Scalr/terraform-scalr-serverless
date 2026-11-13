@@ -129,16 +129,6 @@ resource "azurerm_container_app_environment_storage" "terraform_cache" {
   access_mode                  = "ReadWrite"
 }
 
-resource "azurerm_container_app_environment_storage" "providers_cache" {
-  count                        = var.storage_account_name != "" ? 1 : 0
-  name                         = "providers-cache"
-  container_app_environment_id = azurerm_container_app_environment.this.id
-  account_name                 = var.storage_account_name
-  share_name                   = var.providers_cache_share_name
-  access_key                   = var.storage_account_key
-  access_mode                  = "ReadWrite"
-}
-
 locals {
   use_file_cache = var.storage_account_name != ""
   use_registry   = var.registry_server != ""
@@ -152,8 +142,9 @@ locals {
       SCALR_AGENT_LOG_FORMAT = "json"
     },
     local.use_file_cache ? {
-      TF_PLUGIN_CACHE_DIR = "/terraform-cache"
-      TF_DATA_DIR         = "/providers-cache"
+      # The agent keeps software binaries and providers here. Runs start with a clean
+      # environment, so TF_* variables set on the container never reach them.
+      SCALR_AGENT_CACHE_DIR = "/scalr-agent-cache"
     } : {},
     var.agent_environment,
   )
@@ -173,8 +164,7 @@ locals {
       [for name, value in local.agent_environment : { name = name, value = value }],
     )
     volumeMounts = local.use_file_cache ? [
-      { volumeName = "terraform-cache", mountPath = "/terraform-cache" },
-      { volumeName = "providers-cache", mountPath = "/providers-cache" },
+      { volumeName = "terraform-cache", mountPath = "/scalr-agent-cache" },
     ] : []
   }
 
@@ -243,15 +233,7 @@ resource "azurerm_container_app_job" "scalr_agent" {
         for_each = local.use_file_cache ? [1] : []
         content {
           name = "terraform-cache"
-          path = "/terraform-cache"
-        }
-      }
-
-      dynamic "volume_mounts" {
-        for_each = local.use_file_cache ? [1] : []
-        content {
-          name = "providers-cache"
-          path = "/providers-cache"
+          path = "/scalr-agent-cache"
         }
       }
     }
@@ -261,15 +243,6 @@ resource "azurerm_container_app_job" "scalr_agent" {
       content {
         name         = "terraform-cache"
         storage_name = azurerm_container_app_environment_storage.terraform_cache[0].name
-        storage_type = "AzureFile"
-      }
-    }
-
-    dynamic "volume" {
-      for_each = local.use_file_cache ? [1] : []
-      content {
-        name         = "providers-cache"
-        storage_name = azurerm_container_app_environment_storage.providers_cache[0].name
         storage_type = "AzureFile"
       }
     }

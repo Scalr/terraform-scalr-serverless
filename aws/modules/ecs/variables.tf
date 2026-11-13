@@ -57,12 +57,6 @@ variable "terraform_cache_access_point_id" {
   default     = null
 }
 
-variable "providers_cache_access_point_id" {
-  type        = string
-  description = "EFS access point ID for providers cache"
-  default     = null
-}
-
 variable "task_stop_timeout" {
   type        = number
   description = "Time to wait for the task to stop gracefully before force-killing (in seconds)"

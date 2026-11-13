@@ -63,26 +63,3 @@ resource "aws_efs_access_point" "terraform_cache" {
     Name = "${var.name}-terraform-cache"
   }
 }
-
-resource "aws_efs_access_point" "providers_cache" {
-  file_system_id = aws_efs_file_system.cache.id
-
-  root_directory {
-    path = "/providers-cache"
-
-    creation_info {
-      owner_gid   = 0
-      owner_uid   = 0
-      permissions = "755"
-    }
-  }
-
-  posix_user {
-    gid = 0
-    uid = 0
-  }
-
-  tags = {
-    Name = "${var.name}-providers-cache"
-  }
-}

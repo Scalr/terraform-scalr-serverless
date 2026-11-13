@@ -50,7 +50,8 @@ module "registry" {
 }
 
 module "agent_pool" {
-  source = "../modules/scalr/agent-pool"
+  source    = "../modules/scalr/agent-pool"
+  scalr_url = var.scalr_url
 
   agent_pool_name = var.agent_pool_name
   webhook_url     = module.webhook.url
@@ -86,7 +87,6 @@ module "webhook" {
   storage_account_name       = module.storage.storage_account_name
   storage_account_key        = module.storage.storage_account_key
   terraform_cache_share_name = module.storage.terraform_cache_share_name
-  providers_cache_share_name = module.storage.providers_cache_share_name
   job_timeout                = var.job_timeout
   max_parallel_runs          = var.max_parallel_runs
   agent_environment          = var.agent_environment

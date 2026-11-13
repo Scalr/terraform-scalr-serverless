@@ -27,7 +27,7 @@ flowchart LR
 
 API Management (APIM) authenticates each webhook using the subscription key in the `Ocp-Apim-Subscription-Key` header. It uses its managed identity to start a Container Apps Job execution and returns. The run executes in that separate container, not in API Management.
 
-The policy also sets the agent options that Scalr sends in the `agent_environment` field of the webhook payload on the agent container. It accepts only `SCALR_AGENT_*` options and never `SCALR_AGENT_TOKEN` or `SCALR_AGENT_SINGLE`. Scalr uses it to pass `SCALR_AGENT_TASK_ID`: the agent claims only that task and exits with code 0 when the task is already taken, canceled, or finished. A job start with options replaces the job's container for that execution, so the policy sends the whole container, built from the same settings as the job. Each response reports the launcher version in the `Scalr-Launcher-Version` header, which Scalr shows on the agent pool. The agent container runs in single-run mode (`SCALR_AGENT_SINGLE=true`). It starts in 5 to 15 seconds, connects to Scalr, executes the run, and exits. The Azure Files shares keep providers and modules between runs, so later runs skip those downloads.
+The policy also sets the agent options that Scalr sends in the `agent_environment` field of the webhook payload on the agent container. It accepts only `SCALR_AGENT_*` options and never `SCALR_AGENT_TOKEN` or `SCALR_AGENT_SINGLE`. Scalr uses it to pass `SCALR_AGENT_TASK_ID`: the agent claims only that task and exits with code 0 when the task is already taken, canceled, or finished. A job start with options replaces the job's container for that execution, so the policy sends the whole container, built from the same settings as the job. Each response reports the launcher version in the `Scalr-Launcher-Version` header, which Scalr shows on the agent pool. The agent container runs in single-run mode (`SCALR_AGENT_SINGLE=true`). It starts in 5 to 15 seconds, connects to Scalr, executes the run, and exits. The agent keeps its cache on an Azure Files share (`SCALR_AGENT_CACHE_DIR`): OpenTofu and Terraform binaries, providers, and modules stay between runs, so later runs skip those downloads.
 
 ### Webhook delivery and idempotency
 
@@ -37,18 +37,21 @@ The Container Apps Job start API has no idempotency key, so this module does not
 
 - Terraform 1.0 or later, or OpenTofu.
 - The Azure CLI, signed in with `az login`, or another [azurerm authentication method](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs).
-- A Scalr account and an API token. The Scalr provider reads them from the `SCALR_HOSTNAME` and `SCALR_TOKEN` environment variables.
+- A Scalr account, its ID, and an API token.
 
 ## Quick start
 
-1. Copy the example variables and edit them for your environment:
+Replace `v0.1.0` with the latest tag from the [releases page](https://github.com/Scalr/terraform-scalr-serverless/releases):
 
-   ```bash
-   cd azure
-   cp terraform.tfvars.example terraform.tfvars
-   ```
+```shell
+git clone --branch v0.1.0 https://github.com/Scalr/terraform-scalr-serverless.git
+cd terraform-scalr-serverless/azure
+export SCALR_HOSTNAME=example.scalr.io SCALR_ACCOUNT_ID=acc-xxxxxxxx SCALR_TOKEN=<token>
+export ARM_SUBSCRIPTION_ID=$(az account show --query id --output tsv)
+tofu init && tofu apply
+```
 
-2. Run `tofu init`, then `tofu apply`. The apply creates the Azure resources and the Scalr agent pool, and registers the webhook endpoint with Scalr.
+To override a variable, copy `terraform.tfvars.example` to `terraform.tfvars` and edit it. The apply creates the Azure resources and the Scalr agent pool, and registers the webhook endpoint with Scalr.
 
 The first apply takes 10 to 15 minutes because APIM provisioning is slow. Later applies take a few minutes.
 
@@ -56,6 +59,7 @@ The first apply takes 10 to 15 minutes because APIM provisioning is slow. Later 
 
 | Variable | Description | Default |
 |---|---|---|
+| `scalr_url` | Scalr URL the agent connects to. Set it when Scalr is not at `https://<account>.scalr.io` | `https://<account>.scalr.io` |
 | `azure_location` | Azure region | `eastus` |
 | `resource_group_name` | Resource group name | `scalr-serverless-rg` |
 | `name_prefix` | Prefix for all resource names | `scalr-agent` |
@@ -102,7 +106,7 @@ The values are stored in plain text in the Container Apps Job. Do not put secret
 | Container Apps Job | Runs the Scalr agent on demand |
 | API Management (Consumption) | Webhook endpoint with subscription key authentication |
 | Container Registry (Basic) | Mirrors the agent image from Docker Hub |
-| Storage account and file shares | Persistent Terraform provider and module cache |
+| Storage account and file share | Persistent agent cache: OpenTofu and Terraform binaries, providers, and modules |
 
 ## Cost estimate
 

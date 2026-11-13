@@ -170,7 +170,9 @@ resource "aws_api_gateway_deployment" "deployment" {
       aws_api_gateway_method.post_method.id,
       aws_api_gateway_method.options_method.id,
       aws_api_gateway_integration.options_integration.id,
-      aws_api_gateway_integration.lambda_integration.id
+      aws_api_gateway_integration.lambda_integration.id,
+      # A resource policy change takes effect only on a new deployment.
+      local.allowed_ips,
     ]))
   }
 

@@ -104,3 +104,9 @@ variable "agent_environment" {
   description = "Extra environment variables for the agent container, such as SCALR_AGENT_* options. Values are not secret"
   default     = {}
 }
+
+variable "scalr_url" {
+  description = "Scalr URL the agent connects to, for a Scalr host other than <account>.scalr.io. Defaults to https://<account>.scalr.io"
+  type        = string
+  default     = null
+}

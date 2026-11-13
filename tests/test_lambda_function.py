@@ -69,6 +69,7 @@ def test_sets_agent_options_from_webhook(ecs: Stubber, is_base64: bool) -> None:
         {"tasks": [{"taskArn": TASK_ARN}], "failures": []},
         {
             **RUN_TASK_REQUEST,
+            "tags": [{"key": "scalr.io/agent.task-id", "value": "atask-1"}],
             "overrides": {
                 "containerOverrides": [
                     {
@@ -84,6 +85,46 @@ def test_sets_agent_options_from_webhook(ecs: Stubber, is_base64: bool) -> None:
         202,
         {"taskArn": TASK_ARN},
     )
+
+
+def test_labels_task_with_run_ids(ecs: Stubber) -> None:
+    body = json.dumps(
+        {
+            "task_id": "atask-1",
+            "action": "plan",
+            "run_id": "run-1",
+            "workspace_id": "ws-1",
+            "environment_id": "env-1",
+        }
+    )
+    ecs.add_response(
+        "run_task",
+        {"tasks": [{"taskArn": TASK_ARN}], "failures": []},
+        {
+            **RUN_TASK_REQUEST,
+            "startedBy": "run-1",
+            "tags": [
+                {"key": "scalr.io/run-id", "value": "run-1"},
+                {"key": "scalr.io/agent.task-id", "value": "atask-1"},
+                {"key": "scalr.io/workspace-id", "value": "ws-1"},
+                {"key": "scalr.io/environment-id", "value": "env-1"},
+                {"key": "scalr.io/action", "value": "plan"},
+            ],
+        },
+    )
+
+    assert call_handler({"Idempotency-Key": "task-1"}, body=body) == (202, {"taskArn": TASK_ARN})
+
+
+def test_skips_run_ids_that_ecs_rejects(ecs: Stubber) -> None:
+    body = json.dumps({"run_id": "run-" + "x" * 40, "workspace_id": "ws#1", "action": 1})
+    ecs.add_response(
+        "run_task",
+        {"tasks": [{"taskArn": TASK_ARN}], "failures": []},
+        {**RUN_TASK_REQUEST, "tags": [{"key": "scalr.io/run-id", "value": "run-" + "x" * 40}]},
+    )
+
+    assert call_handler({"Idempotency-Key": "task-1"}, body=body) == (202, {"taskArn": TASK_ARN})
 
 
 @pytest.mark.parametrize("body", ["not json", "[]", '{"agent_environment": []}'])

@@ -78,13 +78,7 @@ variable "storage_account_key" {
 }
 
 variable "terraform_cache_share_name" {
-  description = "Azure Files share for Terraform module cache"
-  type        = string
-  default     = ""
-}
-
-variable "providers_cache_share_name" {
-  description = "Azure Files share for Terraform provider cache"
+  description = "Azure Files share for the agent cache"
   type        = string
   default     = ""
 }

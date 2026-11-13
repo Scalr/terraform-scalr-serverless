@@ -78,7 +78,8 @@ module "lambda" {
 }
 
 module "agent_pool" {
-  source = "../modules/scalr/agent-pool"
+  source    = "../modules/scalr/agent-pool"
+  scalr_url = var.scalr_url
 
   webhook_url = module.api_gateway.url
   webhook_headers = [
@@ -114,5 +115,4 @@ module "ecs" {
   # EFS configuration for persistent cache
   efs_file_system_id              = module.efs.file_system_id
   terraform_cache_access_point_id = module.efs.terraform_cache_access_point_id
-  providers_cache_access_point_id = module.efs.providers_cache_access_point_id
 }

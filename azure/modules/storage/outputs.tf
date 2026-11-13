@@ -10,11 +10,6 @@ output "storage_account_key" {
 }
 
 output "terraform_cache_share_name" {
-  description = "Azure Files share for Terraform module cache"
+  description = "Azure Files share for the agent cache"
   value       = azurerm_storage_share.terraform_cache.name
-}
-
-output "providers_cache_share_name" {
-  description = "Azure Files share for Terraform provider cache"
-  value       = azurerm_storage_share.providers_cache.name
 }

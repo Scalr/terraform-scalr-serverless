@@ -62,12 +62,11 @@ run "storage_account_enables_the_cache" {
     storage_account_name       = "scalragentcache"
     storage_account_key        = "key"
     terraform_cache_share_name = "terraform-cache"
-    providers_cache_share_name = "providers-cache"
   }
 
   assert {
-    condition     = length(azurerm_container_app_job.scalr_agent.template[0].volume) == 2
-    error_message = "With a storage account, the job must mount both cache shares."
+    condition     = length(azurerm_container_app_job.scalr_agent.template[0].volume) == 1
+    error_message = "With a storage account, the job must mount the cache share."
   }
 
   # A job start with agent options replaces the container with local.agent_container.
@@ -84,7 +83,7 @@ run "storage_account_enables_the_cache" {
       toset([for mount in azurerm_container_app_job.scalr_agent.template[0].container[0].volume_mounts : mount.path]) ==
       toset([for mount in local.agent_container.volumeMounts : mount.mountPath])
     )
-    error_message = "The start override must mount the same cache shares as the job template."
+    error_message = "The start override must mount the same cache share as the job template."
   }
 
   assert {

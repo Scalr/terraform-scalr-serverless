@@ -29,5 +29,5 @@ resource "scalr_agent_pool_token" "webhook" {
 }
 
 locals {
-  scalr_url = "https://${data.scalr_current_account.this.name}.scalr.io"
+  scalr_url = coalesce(var.scalr_url, "https://${data.scalr_current_account.this.name}.scalr.io")
 }

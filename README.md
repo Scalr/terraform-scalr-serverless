@@ -31,7 +31,7 @@ flowchart LR
 2. The API gateway authenticates the request with an API key.
 3. The webhook endpoint starts a separate container with the Scalr agent in single-run mode (`SCALR_AGENT_SINGLE=true`): a Lambda function starts an ECS Fargate task on AWS, and API Management starts a Container Apps Job on Azure. The endpoint only starts the container and returns, and the run executes in the container.
 4. The agent connects to Scalr, executes the run, and exits.
-5. The persistent cache keeps Terraform providers and modules between runs.
+5. The persistent cache keeps OpenTofu and Terraform binaries, providers, and modules between runs.
 
 ## Platforms
 
@@ -47,33 +47,37 @@ flowchart LR
 ## Prerequisites
 
 - Terraform 1.0 or later, or OpenTofu.
-- A Scalr account and an API token. The Scalr provider reads them from the `SCALR_HOSTNAME` and `SCALR_TOKEN` environment variables.
+- A Scalr account, its ID, and an API token.
 - The AWS CLI or the Azure CLI, authenticated to the target account.
 
 ## Quick start
 
-1. Clone a release and change to the platform directory. Replace `{version}` with a tag from the [releases page](https://github.com/Scalr/terraform-scalr-serverless/releases), such as `v0.1.0`:
+Replace `v0.1.0` with the latest tag from the [releases page](https://github.com/Scalr/terraform-scalr-serverless/releases).
 
-   ```shell
-   git clone --branch {version} https://github.com/Scalr/terraform-scalr-serverless.git
-   cd terraform-scalr-serverless/aws    # or: cd terraform-scalr-serverless/azure
-   ```
+AWS:
 
-2. Set the variables. The Azure directory provides `terraform.tfvars.example` to copy to `terraform.tfvars`. Every AWS variable has a default, so create `terraform.tfvars` only to override one.
-3. Run `tofu init`, then `tofu apply`. The apply creates the cloud resources and the Scalr agent pool, and registers the webhook endpoint with Scalr.
+```shell
+git clone --branch v0.1.0 https://github.com/Scalr/terraform-scalr-serverless.git
+cd terraform-scalr-serverless/aws
+export SCALR_HOSTNAME=example.scalr.io SCALR_ACCOUNT_ID=acc-xxxxxxxx SCALR_TOKEN=<token>
+tofu init && tofu apply
+```
+
+Azure:
+
+```shell
+git clone --branch v0.1.0 https://github.com/Scalr/terraform-scalr-serverless.git
+cd terraform-scalr-serverless/azure
+export SCALR_HOSTNAME=example.scalr.io SCALR_ACCOUNT_ID=acc-xxxxxxxx SCALR_TOKEN=<token>
+export ARM_SUBSCRIPTION_ID=$(az account show --query id --output tsv)
+tofu init && tofu apply
+```
+
+The apply creates the cloud resources and the Scalr agent pool, and registers the webhook endpoint with Scalr. To override a variable, create `terraform.tfvars` in the platform directory.
 
 The platform guides cover each variable, cost estimates, and troubleshooting.
 
 To upgrade, read the [changelog](CHANGELOG.md) entries between your version and the new one, check out the new tag, and run `tofu apply`. Releases follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor release can include breaking changes.
-
-## Custom container image
-
-To skip provider downloads on the first run, build an image that contains the providers and set it as the container image variable:
-
-```dockerfile
-FROM scalr/agent:latest
-COPY providers/ /terraform-cache/
-```
 
 ## Contributing
 
