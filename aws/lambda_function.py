@@ -24,9 +24,10 @@ LOG = logging.getLogger(__name__)
 LAUNCHER_VERSION = "0.1.0"
 """Reported to Scalr in the Scalr-Launcher-Version response header. Bump it with each release."""
 
-AGENT_OPTION_NAME = re.compile(r"SCALR_AGENT_[A-Z0-9_]+")
-RESERVED_AGENT_OPTIONS = frozenset({"SCALR_AGENT_TOKEN", "SCALR_AGENT_SINGLE"})
-"""Set by the task definition. A webhook must not change the pool or the single-run mode."""
+AGENT_OPTION_NAME = re.compile(r"SCALR_AGENT_DEDICATED_[A-Z0-9_]+")
+"""The agent options a webhook may set: only the options about the agent task the agent is
+dedicated to. Any other option could point the agent, which holds the pool token, at another
+server or change how it trusts one."""
 
 RUN_TAGS = {
     "run_id": "scalr.io/run-id",
@@ -96,11 +97,7 @@ def agent_environment(payload: dict[str, object]) -> list[KeyValuePairTypeDef]:
 
     environment: list[KeyValuePairTypeDef] = []
     for name, value in options.items():
-        if (
-            not AGENT_OPTION_NAME.fullmatch(name)
-            or name in RESERVED_AGENT_OPTIONS
-            or not isinstance(value, str)
-        ):
+        if not AGENT_OPTION_NAME.fullmatch(name) or not isinstance(value, str):
             LOG.warning("Ignored agent option from the webhook", extra={"option_name": name})
             continue
         environment.append({"name": name, "value": value})

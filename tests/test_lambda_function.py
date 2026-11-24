@@ -57,8 +57,10 @@ def test_sets_agent_options_from_webhook(ecs: Stubber, is_base64: bool) -> None:
                 "SCALR_AGENT_DEDICATED_TASK_ID": "atask-1",
                 "SCALR_AGENT_TOKEN": "other-pool-token",
                 "SCALR_AGENT_SINGLE": "false",
-                "SCALR_URL": "https://example.com",
-                "SCALR_AGENT_DEBUG": True,
+                "SCALR_AGENT_URL": "https://attacker.example",
+                "SCALR_AGENT_CA_CERT": "/tmp/attacker-ca.pem",
+                "SCALR_URL": "https://attacker.example",
+                "SCALR_AGENT_DEDICATED_DEBUG": True,
             },
         }
     )

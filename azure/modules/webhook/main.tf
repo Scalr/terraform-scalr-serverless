@@ -65,8 +65,9 @@ resource "azurerm_api_management_api_policy" "webhook" {
             var allowed = new JArray();
             foreach (var option in options.Properties()) {
               if (option.Value.Type != JTokenType.String) { continue; }
-              if (!Regex.IsMatch(option.Name, "^SCALR_AGENT_[A-Z0-9_]+$")) { continue; }
-              if (option.Name == "SCALR_AGENT_TOKEN" || option.Name == "SCALR_AGENT_SINGLE") { continue; }
+              // Only options about the dedicated task. Any other option could point the agent,
+              // which holds the pool token, at another server or change how it trusts one.
+              if (!Regex.IsMatch(option.Name, "^SCALR_AGENT_DEDICATED_[A-Z0-9_]+$")) { continue; }
               allowed.Add(new JObject(new JProperty("name", option.Name), new JProperty("value", (string)option.Value)));
             }
             if (allowed.Count == 0) {
