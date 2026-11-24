@@ -128,7 +128,7 @@ def lambda_handler(event: ApiGatewayProxyEvent, _context: object) -> ApiGatewayP
     run_id = payload.get("run_id")
     log_fields = {"idempotency_key": idempotency_key, "run_id": run_id}
 
-    # Scalr passes agent options, such as SCALR_AGENT_TASK_ID, with each webhook.
+    # Scalr passes agent options, such as SCALR_AGENT_DEDICATED_TASK_ID, with each webhook.
     overrides: TaskOverrideTypeDef = {}
     if environment := agent_environment(payload):
         overrides = {

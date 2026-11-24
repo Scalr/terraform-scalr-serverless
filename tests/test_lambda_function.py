@@ -54,7 +54,7 @@ def test_sets_agent_options_from_webhook(ecs: Stubber, is_base64: bool) -> None:
         {
             "task_id": "atask-1",
             "agent_environment": {
-                "SCALR_AGENT_TASK_ID": "atask-1",
+                "SCALR_AGENT_DEDICATED_TASK_ID": "atask-1",
                 "SCALR_AGENT_TOKEN": "other-pool-token",
                 "SCALR_AGENT_SINGLE": "false",
                 "SCALR_URL": "https://example.com",
@@ -74,7 +74,9 @@ def test_sets_agent_options_from_webhook(ecs: Stubber, is_base64: bool) -> None:
                 "containerOverrides": [
                     {
                         "name": "scalr-agent",
-                        "environment": [{"name": "SCALR_AGENT_TASK_ID", "value": "atask-1"}],
+                        "environment": [
+                            {"name": "SCALR_AGENT_DEDICATED_TASK_ID", "value": "atask-1"}
+                        ],
                     }
                 ]
             },

@@ -51,7 +51,7 @@ resource "azurerm_api_management_api_policy" "webhook" {
             <value>application/json</value>
           </set-header>
           <set-body>@{
-            // Scalr sends agent options, such as SCALR_AGENT_TASK_ID, with each webhook.
+            // Scalr sends agent options, such as SCALR_AGENT_DEDICATED_TASK_ID, with each webhook.
             JObject options = null;
             try {
               options = context.Request.Body.As<JObject>(preserveContent: true)["agent_environment"] as JObject;
