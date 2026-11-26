@@ -12,6 +12,7 @@ Each webhook from Scalr starts a container that executes one Terraform run and e
 - [Platforms](#platforms)
 - [Prerequisites](#prerequisites)
 - [Quick start](#quick-start)
+- [Upgrade](#upgrade)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -86,7 +87,17 @@ The apply creates the cloud resources and the Scalr agent pool, and registers th
 
 The platform guides cover each variable, cost estimates, and troubleshooting.
 
-To upgrade, read the [changelog](CHANGELOG.md) entries between your version and the new one, check out the new tag, and run `tofu apply`. Releases follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor release can include breaking changes.
+## Upgrade
+
+To get notified of new releases, watch this repository on GitHub and choose **Custom** > **Releases**. Scalr also shows a notice on the agent pool page when the launcher is out of date.
+
+To upgrade a deployment:
+
+1. Read the [changelog](CHANGELOG.md) entries between your version and the new one.
+2. In your clone, check out the new tag, for example `git fetch --tags && git checkout v0.2.0`.
+3. In the platform directory, run `tofu init && tofu apply` with the same state and `terraform.tfvars` as before.
+
+Releases follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor release can include breaking changes.
 
 ## Contributing
 

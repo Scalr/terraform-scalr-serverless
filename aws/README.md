@@ -87,6 +87,8 @@ tofu init && tofu apply
 
 The apply creates the AWS resources and the Scalr agent pool, and registers the webhook endpoint with Scalr.
 
+To upgrade a deployment, see [Upgrade](../README.md#upgrade).
+
 ## Configuration
 
 | Variable | Description | Default |

@@ -67,6 +67,8 @@ To override a variable, copy `terraform.tfvars.example` to `terraform.tfvars` an
 
 The first apply takes 10 to 15 minutes because APIM provisioning is slow. Later applies take a few minutes.
 
+To upgrade a deployment, see [Upgrade](../README.md#upgrade).
+
 ## Configuration
 
 | Variable | Description | Default |
