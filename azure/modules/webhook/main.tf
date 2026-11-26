@@ -133,6 +133,7 @@ resource "azurerm_container_app_environment_storage" "terraform_cache" {
 locals {
   use_file_cache = var.storage_account_name != ""
   use_registry   = var.registry_server != ""
+  cache_dir      = "/scalr-agent-cache"
 
   # var.agent_environment overrides these defaults; its validation keeps the token and single-run mode.
   agent_environment = merge(
@@ -145,14 +146,14 @@ locals {
     local.use_file_cache ? {
       # The agent keeps software binaries and providers here. Runs start with a clean
       # environment, so TF_* variables set on the container never reach them.
-      SCALR_AGENT_CACHE_DIR = "/scalr-agent-cache"
+      SCALR_AGENT_CACHE_DIR = local.cache_dir
     } : {},
     var.agent_environment,
   )
 
-  # The agent container as the Container Apps API describes it. A job start with agent options
-  # from the webhook sends it as an override, which replaces the job's container, so it must
-  # match the template of azurerm_container_app_job.scalr_agent.
+  # The agent container, in the shape of the Container Apps job start API. The job template is
+  # built from it, and a job start with agent options from the webhook sends it as an override.
+  # The start API accepts no volume mounts, so the cache mount is set on the job template only.
   agent_container = {
     name  = "scalr-agent"
     image = var.container_image
@@ -164,9 +165,6 @@ locals {
       [{ name = "SCALR_AGENT_TOKEN", secretRef = "scalr-token" }],
       [for name, value in local.agent_environment : { name = name, value = value }],
     )
-    volumeMounts = local.use_file_cache ? [
-      { volumeName = "terraform-cache", mountPath = "/scalr-agent-cache" },
-    ] : []
   }
 
   # Reported to Scalr in the Scalr-Launcher-Version response header. Bump it with each release.
@@ -209,7 +207,6 @@ resource "azurerm_container_app_job" "scalr_agent" {
     }
   }
 
-  # Keep in sync with local.agent_container, which webhook starts with agent options send instead.
   template {
     container {
       name   = local.agent_container.name
@@ -217,16 +214,12 @@ resource "azurerm_container_app_job" "scalr_agent" {
       cpu    = local.agent_container.resources.cpu
       memory = local.agent_container.resources.memory
 
-      env {
-        name        = "SCALR_AGENT_TOKEN"
-        secret_name = "scalr-token"
-      }
-
       dynamic "env" {
-        for_each = local.agent_environment
+        for_each = local.agent_container.env
         content {
-          name  = env.key
-          value = env.value
+          name        = env.value.name
+          value       = try(env.value.value, null)
+          secret_name = try(env.value.secretRef, null)
         }
       }
 
@@ -234,7 +227,7 @@ resource "azurerm_container_app_job" "scalr_agent" {
         for_each = local.use_file_cache ? [1] : []
         content {
           name = "terraform-cache"
-          path = "/scalr-agent-cache"
+          path = local.cache_dir
         }
       }
     }

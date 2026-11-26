@@ -69,21 +69,22 @@ run "storage_account_enables_the_cache" {
     error_message = "With a storage account, the job must mount the cache share."
   }
 
-  # A job start with agent options replaces the container with local.agent_container.
   assert {
-    condition = (
-      toset([for env in azurerm_container_app_job.scalr_agent.template[0].container[0].env : env.name]) ==
-      toset([for env in local.agent_container.env : env.name])
-    )
-    error_message = "The start override must set the same environment variables as the job template."
+    condition = [
+      for mount in azurerm_container_app_job.scalr_agent.template[0].container[0].volume_mounts : mount.path
+      ] == [
+      for env in azurerm_container_app_job.scalr_agent.template[0].container[0].env : env.value
+      if env.name == "SCALR_AGENT_CACHE_DIR"
+    ]
+    error_message = "The agent cache directory must be the mounted cache share."
   }
 
   assert {
-    condition = (
-      toset([for mount in azurerm_container_app_job.scalr_agent.template[0].container[0].volume_mounts : mount.path]) ==
-      toset([for mount in local.agent_container.volumeMounts : mount.mountPath])
-    )
-    error_message = "The start override must mount the same cache share as the job template."
+    condition = anytrue([
+      for env in azurerm_container_app_job.scalr_agent.template[0].container[0].env :
+      env.name == "SCALR_AGENT_TOKEN" && env.secret_name == "scalr-token"
+    ])
+    error_message = "The agent must read its token from the job secret."
   }
 
   assert {
