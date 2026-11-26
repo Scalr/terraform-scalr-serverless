@@ -4,6 +4,18 @@ Deploys a Scalr serverless agent pool on Azure. Each Terraform or OpenTofu run e
 
 Product documentation: [Serverless agent pools](https://docs.scalr.io/docs/serverless-agents-pools).
 
+## Contents
+
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Outputs](#outputs)
+- [What gets created](#what-gets-created)
+- [Cost estimate](#cost-estimate)
+- [Troubleshooting](#troubleshooting)
+- [Security](#security)
+
 ## Architecture
 
 Solid arrows show how a webhook starts an agent and how the agent accesses its cache. The dotted arrow shows the agent's separate connection back to Scalr during the run.

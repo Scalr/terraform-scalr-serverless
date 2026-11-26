@@ -4,6 +4,18 @@ Deploys a Scalr serverless agent pool on AWS. Each Terraform or OpenTofu run exe
 
 Product documentation: [Serverless agent pools](https://docs.scalr.io/docs/serverless-agents-pools).
 
+## Contents
+
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Outputs](#outputs)
+- [What gets created](#what-gets-created)
+- [Security](#security)
+- [Cost estimate](#cost-estimate)
+- [Troubleshooting](#troubleshooting)
+
 ## Architecture
 
 Solid arrows show how a webhook starts an agent and how the agent accesses its cache. The dotted arrow shows the agent's separate connection back to Scalr during the run.

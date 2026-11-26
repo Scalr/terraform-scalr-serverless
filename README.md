@@ -6,6 +6,15 @@ This repository holds Terraform and OpenTofu configurations that deploy a Scalr 
 
 Each webhook from Scalr starts a container that executes one Terraform run and exits. No container runs while the pool is idle, so you pay only for the compute time of the runs.
 
+## Contents
+
+- [Architecture](#architecture)
+- [Platforms](#platforms)
+- [Prerequisites](#prerequisites)
+- [Quick start](#quick-start)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Architecture
 
 Solid arrows show how a webhook starts an agent and how the agent accesses its cache. The dotted arrow shows the agent's separate connection back to Scalr during the run.
