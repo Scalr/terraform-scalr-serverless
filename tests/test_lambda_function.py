@@ -36,6 +36,7 @@ def ecs() -> Iterator[Stubber]:
 def call_handler(headers: dict[str, str] | None, **event: object) -> tuple[int, dict]:
     response = lambda_function.lambda_handler({"headers": headers, **event}, None)
     assert response["headers"]["Scalr-Launcher-Version"] == lambda_function.LAUNCHER_VERSION
+    assert response["headers"]["Scalr-Launcher-Type"] == "aws-lambda"
     return response["statusCode"], json.loads(response["body"])
 
 

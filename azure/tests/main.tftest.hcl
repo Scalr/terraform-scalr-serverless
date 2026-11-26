@@ -91,4 +91,9 @@ run "storage_account_enables_the_cache" {
     condition     = strcontains(azurerm_api_management_api_policy.webhook.xml_content, "<value>${local.launcher_version}</value>")
     error_message = "The webhook response must report the launcher version."
   }
+
+  assert {
+    condition     = strcontains(azurerm_api_management_api_policy.webhook.xml_content, "<value>azure-api-management</value>")
+    error_message = "The webhook response must report the launcher type."
+  }
 }

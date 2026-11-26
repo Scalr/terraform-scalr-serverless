@@ -31,7 +31,7 @@ API Management (APIM) authenticates each webhook using the subscription key in t
 
 Scalr delivers each webhook at least once and retries a failed delivery ([webhook reference](https://docs.scalr.io/docs/serverless-webhooks#response-and-retries)). The Container Apps Job start API has no idempotency key, so this module does not deduplicate deliveries. A retry can start an extra agent that finds no task and exits.
 
-Each response reports the launcher version in the `Scalr-Launcher-Version` header. Scalr shows it on the agent pool.
+Each response reports the launcher version in the `Scalr-Launcher-Version` header and the launcher type, `azure-api-management`, in the `Scalr-Launcher-Type` header. Scalr shows both on the agent pool.
 
 ## Prerequisites
 

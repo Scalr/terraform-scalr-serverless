@@ -23,6 +23,9 @@ LOG = logging.getLogger(__name__)
 
 LAUNCHER_VERSION = "0.1.0"
 """Reported to Scalr in the Scalr-Launcher-Version response header. Bump it with each release."""
+LAUNCHER_TYPE = "aws-lambda"
+"""Reported to Scalr in the Scalr-Launcher-Type response header: the service that runs the
+launcher."""
 
 AGENT_OPTION_NAME = re.compile(r"SCALR_AGENT_DEDICATED_[A-Z0-9_]+")
 """The agent options a webhook may set: only the options about the agent task the agent is
@@ -72,7 +75,11 @@ class ApiGatewayProxyResponse(TypedDict):
 def respond(status_code: int, body: TaskRequested | WebhookError) -> ApiGatewayProxyResponse:
     return {
         "statusCode": status_code,
-        "headers": {"Content-Type": "application/json", "Scalr-Launcher-Version": LAUNCHER_VERSION},
+        "headers": {
+            "Content-Type": "application/json",
+            "Scalr-Launcher-Type": LAUNCHER_TYPE,
+            "Scalr-Launcher-Version": LAUNCHER_VERSION,
+        },
         "body": json.dumps(body),
     }
 

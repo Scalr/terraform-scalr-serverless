@@ -88,6 +88,9 @@ resource "azurerm_api_management_api_policy" "webhook" {
           <authentication-managed-identity resource="https://management.azure.com/" />
         </send-request>
         <return-response response-variable-name="job-response">
+          <set-header name="Scalr-Launcher-Type" exists-action="override">
+            <value>${local.launcher_type}</value>
+          </set-header>
           <set-header name="Scalr-Launcher-Version" exists-action="override">
             <value>${local.launcher_version}</value>
           </set-header>
@@ -169,6 +172,8 @@ locals {
 
   # Reported to Scalr in the Scalr-Launcher-Version response header. Bump it with each release.
   launcher_version = "0.1.0"
+  # Reported to Scalr in the Scalr-Launcher-Type response header: the service that runs the launcher.
+  launcher_type = "azure-api-management"
 }
 
 resource "azurerm_container_app_job" "scalr_agent" {
