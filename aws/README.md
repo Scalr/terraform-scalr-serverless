@@ -32,12 +32,6 @@ API Gateway authenticates each webhook using the API key in the `x-api-key` head
 
 Scalr delivers each webhook at least once, with the agent task ID in the `Idempotency-Key` header, and retries a failed delivery ([webhook reference](https://docs.scalr.io/docs/serverless-webhooks#response-and-retries)). The Lambda function passes a hash of that key to ECS `RunTask` as `clientToken`, so retries within 24 hours start one Fargate task. It returns `202` with the `taskArn`, `400` without the header, and `502` when ECS cannot launch the task.
 
-### Agent options from the webhook
-
-Scalr sends agent options in the `agent_environment` field of the webhook payload. The function sets the `SCALR_AGENT_DEDICATED_*` options on the agent container and ignores all others, because another option could point the agent at a different server.
-
-`SCALR_AGENT_DEDICATED_TASK_ID` makes the agent run only the task it was started for. If that task is already taken, canceled, or finished, the agent exits with code 0.
-
 Each response reports the function version in the `Scalr-Launcher-Version` header. Scalr shows it on the agent pool.
 
 ### Task tags

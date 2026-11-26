@@ -31,14 +31,6 @@ API Management (APIM) authenticates each webhook using the subscription key in t
 
 Scalr delivers each webhook at least once and retries a failed delivery ([webhook reference](https://docs.scalr.io/docs/serverless-webhooks#response-and-retries)). The Container Apps Job start API has no idempotency key, so this module does not deduplicate deliveries. A retry can start an extra agent that finds no task and exits.
 
-### Agent options from the webhook
-
-Scalr sends agent options in the `agent_environment` field of the webhook payload. The APIM policy sets the `SCALR_AGENT_DEDICATED_*` options on the agent container and ignores all others, because another option could point the agent at a different server.
-
-`SCALR_AGENT_DEDICATED_TASK_ID` makes the agent run only the task it was started for. If that task is already taken, canceled, or finished, the agent exits with code 0.
-
-A job start with options replaces the job's container for that execution. The policy therefore sends the whole container, built from the same settings as the job.
-
 Each response reports the launcher version in the `Scalr-Launcher-Version` header. Scalr shows it on the agent pool.
 
 ## Prerequisites
