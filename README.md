@@ -55,7 +55,7 @@ flowchart LR
 
 ## Prerequisites
 
-- Terraform 1.0 or later, or OpenTofu.
+- Terraform 1.1 or later, or OpenTofu.
 - A Scalr account, its ID, and an API token.
 - The AWS CLI or the Azure CLI, authenticated to the target account.
 

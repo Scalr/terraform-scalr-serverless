@@ -154,8 +154,7 @@ locals {
       SCALR_AGENT_LOG_FORMAT = "json"
     },
     local.use_file_cache ? {
-      # The agent keeps software binaries and providers here. Runs start with a clean
-      # environment, so TF_* variables set on the container never reach them.
+      # The agent keeps software binaries and providers here, and points each run at them.
       SCALR_AGENT_CACHE_DIR = local.cache_dir
     } : {},
     var.agent_environment,

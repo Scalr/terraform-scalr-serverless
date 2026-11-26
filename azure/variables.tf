@@ -63,3 +63,9 @@ variable "scalr_url" {
   type        = string
   default     = null
 }
+
+variable "scalr_agent_cache_enabled" {
+  type        = bool
+  description = "Keep the Scalr agent cache (OpenTofu and Terraform binaries, providers, and modules) on a persistent volume, so later runs skip the downloads. All runs of the pool share the cache, so it suits a pool whose workspaces trust each other"
+  default     = true
+}

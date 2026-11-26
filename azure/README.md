@@ -47,7 +47,7 @@ Each response reports the launcher version in the `Scalr-Launcher-Version` heade
 
 ## Prerequisites
 
-- Terraform 1.0 or later, or OpenTofu.
+- Terraform 1.1 or later, or OpenTofu.
 - The Azure CLI, signed in with `az login`, or another [azurerm authentication method](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs).
 - A Scalr account, its ID, and an API token.
 
@@ -82,6 +82,7 @@ The first apply takes 10 to 15 minutes because APIM provisioning is slow. Later 
 | `job_timeout` | Seconds a job execution can run before Container Apps stops it | `3600` |
 | `max_parallel_runs` | Maximum number of concurrent job executions | `10` |
 | `agent_environment` | Extra environment variables for the agent container. See [Agent configuration](#agent-configuration) | `{}` |
+| `scalr_agent_cache_enabled` | Keep the agent cache on a persistent volume shared by all runs of the pool. See the tip in [Security](#security) | `true` |
 
 ### Agent configuration
 
@@ -188,3 +189,6 @@ az rest --method POST --uri \
 - **Registry**: the Container Registry (Basic) uses admin credentials. The job pulls images over the Azure network.
 - **Storage**: the storage account requires TLS 1.2, disables public blob access, and enables soft delete.
 - **Network**: the Container Apps subnet has a network security group and is delegated to `Microsoft.App/environments`.
+
+> [!TIP]
+> All runs of the pool share the agent cache on the Azure Files share, including the OpenTofu and Terraform binaries. This suits a pool whose workspaces trust each other. For workspaces that must stay isolated, use a separate pool or set `scalr_agent_cache_enabled = false`.

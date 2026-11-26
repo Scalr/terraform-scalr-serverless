@@ -68,7 +68,7 @@ To split Fargate costs by workspace in Cost Explorer, activate the tags as cost 
 
 ## Prerequisites
 
-- Terraform 1.0 or later, or OpenTofu.
+- Terraform 1.1 or later, or OpenTofu.
 - The AWS CLI, authenticated to an account where you can create VPC, API Gateway, Lambda, ECS, EFS, IAM, and Secrets Manager resources.
 - A Scalr account, its ID, and an API token.
 
@@ -83,7 +83,7 @@ export SCALR_HOSTNAME=example.scalr.io SCALR_ACCOUNT_ID=acc-xxxxxxxx SCALR_TOKEN
 tofu init && tofu apply
 ```
 
-`AWS_PROFILE` or `AWS_REGION` select another AWS profile or region. Every variable has a default; create `terraform.tfvars` only to override one. Resource names must be unique in the account, so set `ecs_cluster_name`, `ecs_task_name`, and `lambda_function_name` for a second deployment.
+`AWS_PROFILE` selects another AWS profile. To deploy to another region, set `TF_VAR_aws_region`: the configuration passes `aws_region` to the provider, so `AWS_REGION` has no effect. Every variable has a default; create `terraform.tfvars` only to override one. Resource names must be unique in the account, so set `ecs_cluster_name`, `ecs_task_name`, and `lambda_function_name` for a second deployment.
 
 The apply creates the AWS resources and the Scalr agent pool, and registers the webhook endpoint with Scalr.
 
@@ -104,6 +104,7 @@ The apply creates the AWS resources and the Scalr agent pool, and registers the 
 | `lambda_memory_size` | Lambda memory (MB) | `128` |
 | `lambda_runtime` | Lambda Python runtime. The handler requires `python3.11` or later | `python3.13` |
 | `agent_environment` | Extra environment variables for the agent container. See [Agent configuration](#agent-configuration) | `{}` |
+| `scalr_agent_cache_enabled` | Keep the agent cache on a persistent volume shared by all runs of the pool. See the tip in [Security](#security) | `true` |
 
 ### Agent configuration
 
@@ -150,6 +151,9 @@ The values are stored in plain text in the ECS task definition. Do not put secre
 - **Token storage**: the Scalr agent token lives in AWS Secrets Manager. The task definition references it with `valueFrom`, so the token does not appear in the task definition as plain text.
 - **VPC isolation**: ECS tasks run in dedicated subnets with security groups.
 - **EFS encryption**: EFS encrypts data at rest.
+
+> [!TIP]
+> All runs of the pool share the agent cache on EFS, including the OpenTofu and Terraform binaries. This suits a pool whose workspaces trust each other. For workspaces that must stay isolated, use a separate pool or set `scalr_agent_cache_enabled = false`.
 
 ## Cost estimate
 

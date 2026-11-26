@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.1"
 
   required_providers {
     azurerm = {
@@ -32,7 +32,13 @@ module "networking" {
   resource_group_name = module.resource_group.name
 }
 
+moved {
+  from = module.storage
+  to   = module.storage[0]
+}
+
 module "storage" {
+  count  = var.scalr_agent_cache_enabled ? 1 : 0
   source = "./modules/storage"
 
   name                = var.name_prefix
@@ -84,9 +90,9 @@ module "webhook" {
   container_memory_gb          = var.container_memory_gb
   scalr_url                    = module.agent_pool.scalr_url
   scalr_agent_token            = module.agent_pool.agent_token
-  storage_account_name         = module.storage.storage_account_name
-  storage_account_key          = module.storage.storage_account_key
-  scalr_agent_cache_share_name = module.storage.scalr_agent_cache_share_name
+  storage_account_name         = one(module.storage[*].storage_account_name)
+  storage_account_key          = one(module.storage[*].storage_account_key)
+  scalr_agent_cache_share_name = one(module.storage[*].scalr_agent_cache_share_name)
   job_timeout                  = var.job_timeout
   max_parallel_runs            = var.max_parallel_runs
   agent_environment            = var.agent_environment

@@ -1,4 +1,6 @@
 terraform {
+  required_version = ">= 1.1"
+
   required_providers {
     aws = {
       source = "hashicorp/aws"
@@ -52,7 +54,13 @@ module "networking" {
   public_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24"]
 }
 
+moved {
+  from = module.efs
+  to   = module.efs[0]
+}
+
 module "efs" {
+  count  = var.scalr_agent_cache_enabled ? 1 : 0
   source = "./modules/efs"
 
   name       = "${var.vpc_name}-cache"
@@ -113,6 +121,6 @@ module "ecs" {
   task_stop_timeout   = var.ecs_task_stop_timeout
 
   # EFS configuration for persistent cache
-  efs_file_system_id                = module.efs.file_system_id
-  scalr_agent_cache_access_point_id = module.efs.scalr_agent_cache_access_point_id
+  efs_file_system_id                = one(module.efs[*].file_system_id)
+  scalr_agent_cache_access_point_id = one(module.efs[*].scalr_agent_cache_access_point_id)
 }
