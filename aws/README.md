@@ -26,27 +26,39 @@ flowchart LR
     ecs -. "connects back" .-> scalr
 ```
 
-API Gateway authenticates each webhook using the API key in the `x-api-key` header and, by default, checks that the source IP is on the Scalr allowlist. It then invokes Lambda, which calls ECS `RunTask` to start a Fargate task with the Scalr agent in single-run mode (`SCALR_AGENT_SINGLE=true`) and returns. Lambda only starts the run: an invocation is limited to 15 minutes, so the run executes in the separate Fargate container, which has no time limit. The agent connects to Scalr, executes the run, and exits. The agent keeps its cache on EFS (`SCALR_AGENT_CACHE_DIR`): OpenTofu and Terraform binaries, providers, and modules stay between runs, so later runs skip those downloads.
+API Gateway authenticates each webhook using the API key in the `x-api-key` header and, by default, checks that the source IP is on the Scalr allowlist. It then invokes Lambda, which calls ECS `RunTask` to start a Fargate task with the Scalr agent in single-run mode (`SCALR_AGENT_SINGLE=true`). The run executes in the Fargate task, so the 15-minute Lambda limit does not apply to it. The agent connects to Scalr, executes the run, and exits. The agent cache is on EFS, so later runs skip the downloads of OpenTofu and Terraform binaries, providers, and modules.
 
-### Webhook delivery and idempotency
+### Webhook delivery
 
-Scalr delivers each webhook at least once, with the agent task ID in the `Idempotency-Key` header. It retries a delivery that times out, fails to connect, or returns a non-`2xx` status, up to 3 attempts in total. See the [webhook reference](https://docs.scalr.io/docs/serverless-webhooks#response-and-retries). An endpoint that does not deduplicate on that header can start an extra agent container for every retry.
+Scalr delivers each webhook at least once, with the agent task ID in the `Idempotency-Key` header, and retries a failed delivery ([webhook reference](https://docs.scalr.io/docs/serverless-webhooks#response-and-retries)). The Lambda function passes a hash of that key to ECS `RunTask` as `clientToken`, so retries within 24 hours start one Fargate task. It returns `202` with the `taskArn`, `400` without the header, and `502` when ECS cannot launch the task.
 
-The Lambda function passes the SHA-256 hash of `Idempotency-Key` to ECS `RunTask` as `clientToken`. ECS remembers a client token for up to 24 hours per cluster and returns the original task for repeated calls, so one key starts at most one Fargate task. The function follows the handler in the [manual setup guide](https://docs.scalr.io/docs/serverless-aws-fargate).
+### Agent options from the webhook
 
-The function also sets the agent options that Scalr sends in the `agent_environment` field of the webhook payload on the agent container. It accepts only `SCALR_AGENT_DEDICATED_*` options, which concern the one task the agent is started for. Any other option could point the agent, which holds the pool token, at another server, so the function ignores it. Scalr uses it to pass `SCALR_AGENT_DEDICATED_TASK_ID`: the agent claims only that task, so it cannot take a task that another container was started for, and it exits with code 0 when the task is already taken, canceled, or finished. Each response reports the function version in the `Scalr-Launcher-Version` header, which Scalr shows on the agent pool.
+Scalr sends agent options in the `agent_environment` field of the webhook payload. The function sets the `SCALR_AGENT_DEDICATED_*` options on the agent container and ignores all others, because another option could point the agent at a different server.
 
-The function tags each Fargate task with the IDs from the webhook payload (`scalr.io/run-id`, `scalr.io/agent.task-id`, `scalr.io/workspace-id`, `scalr.io/environment-id`, and `scalr.io/action`) and sets its `startedBy` to the run ID. To find the task of a run, use `aws ecs list-tasks --cluster <cluster> --started-by <run-id>`. The tags also split Fargate costs by workspace in Cost Explorer once you activate them as cost allocation tags.
+`SCALR_AGENT_DEDICATED_TASK_ID` makes the agent run only the task it was started for. If that task is already taken, canceled, or finished, the agent exits with code 0.
 
-The function returns:
+Each response reports the function version in the `Scalr-Launcher-Version` header. Scalr shows it on the agent pool.
 
-| Status | Meaning |
+### Task tags
+
+The function sets `startedBy` on each Fargate task to the run ID. To find the task of a run:
+
+```shell
+aws ecs list-tasks --cluster <cluster> --started-by <run-id>
+```
+
+The function also tags the task with values from the webhook payload:
+
+| Tag | Value |
 |---|---|
-| `202` | ECS accepted the launch, or a task for this key already exists. The body has the `taskArn` |
-| `400` | The request has no `Idempotency-Key` header. The function starts no task |
-| `502` | The ECS `RunTask` request failed, or ECS could not launch the task. Scalr retries |
+| `scalr.io/run-id` | Run ID |
+| `scalr.io/agent.task-id` | Agent task ID |
+| `scalr.io/workspace-id` | Workspace ID |
+| `scalr.io/environment-id` | Environment ID |
+| `scalr.io/action` | Task type, such as `plan` or `apply` |
 
-ECS also remembers a launch failure for the client token. A retry with the same `Idempotency-Key` returns the same `502` without a new launch attempt.
+To split Fargate costs by workspace in Cost Explorer, activate the tags as cost allocation tags.
 
 ## Prerequisites
 

@@ -25,13 +25,21 @@ flowchart LR
     job -. "connects back" .-> scalr
 ```
 
-API Management (APIM) authenticates each webhook using the subscription key in the `Ocp-Apim-Subscription-Key` header. It uses its managed identity to start a Container Apps Job execution and returns. The run executes in that separate container, not in API Management.
+API Management (APIM) authenticates each webhook using the subscription key in the `Ocp-Apim-Subscription-Key` header. It uses its managed identity to start a Container Apps Job execution. The agent container runs in single-run mode (`SCALR_AGENT_SINGLE=true`). It starts in 5 to 15 seconds, connects to Scalr, executes the run, and exits. The agent cache is on an Azure Files share, so later runs skip the downloads of OpenTofu and Terraform binaries, providers, and modules.
 
-The policy also sets the agent options that Scalr sends in the `agent_environment` field of the webhook payload on the agent container. It accepts only `SCALR_AGENT_DEDICATED_*` options, which concern the one task the agent is started for. Any other option could point the agent, which holds the pool token, at another server, so the policy ignores it. Scalr uses it to pass `SCALR_AGENT_DEDICATED_TASK_ID`: the agent claims only that task and exits with code 0 when the task is already taken, canceled, or finished. A job start with options replaces the job's container for that execution, so the policy sends the whole container, built from the same settings as the job. Each response reports the launcher version in the `Scalr-Launcher-Version` header, which Scalr shows on the agent pool. The agent container runs in single-run mode (`SCALR_AGENT_SINGLE=true`). It starts in 5 to 15 seconds, connects to Scalr, executes the run, and exits. The agent keeps its cache on an Azure Files share (`SCALR_AGENT_CACHE_DIR`): OpenTofu and Terraform binaries, providers, and modules stay between runs, so later runs skip those downloads.
+### Webhook delivery
 
-### Webhook delivery and idempotency
+Scalr delivers each webhook at least once and retries a failed delivery ([webhook reference](https://docs.scalr.io/docs/serverless-webhooks#response-and-retries)). The Container Apps Job start API has no idempotency key, so this module does not deduplicate deliveries. A retry can start an extra agent that finds no task and exits.
 
-The Container Apps Job start API has no idempotency key, so this module does not deduplicate deliveries. A retried delivery can start an extra agent that finds no task and exits. See the [webhook reference](https://docs.scalr.io/docs/serverless-webhooks#response-and-retries).
+### Agent options from the webhook
+
+Scalr sends agent options in the `agent_environment` field of the webhook payload. The APIM policy sets the `SCALR_AGENT_DEDICATED_*` options on the agent container and ignores all others, because another option could point the agent at a different server.
+
+`SCALR_AGENT_DEDICATED_TASK_ID` makes the agent run only the task it was started for. If that task is already taken, canceled, or finished, the agent exits with code 0.
+
+A job start with options replaces the job's container for that execution. The policy therefore sends the whole container, built from the same settings as the job.
+
+Each response reports the launcher version in the `Scalr-Launcher-Version` header. Scalr shows it on the agent pool.
 
 ## Prerequisites
 
