@@ -2,6 +2,7 @@ import base64
 import hashlib
 import json
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from botocore.stub import Stubber
@@ -165,3 +166,9 @@ def test_ecs_error_returns_502(ecs: Stubber, error_code: str) -> None:
         502,
         {"error": "ECS RunTask request failed"},
     )
+
+
+def test_azure_launcher_reports_the_same_version() -> None:
+    azure_module = Path(__file__).parent.parent / "azure/modules/webhook/main.tf"
+
+    assert f'launcher_version = "{lambda_function.LAUNCHER_VERSION}"' in azure_module.read_text()

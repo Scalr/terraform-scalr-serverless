@@ -67,14 +67,15 @@ resource "azurerm_api_management_api_policy" "webhook" {
               if (option.Value.Type != JTokenType.String) { continue; }
               // Only options about the dedicated task. Any other option could point the agent,
               // which holds the pool token, at another server or change how it trusts one.
-              if (!Regex.IsMatch(option.Name, "^SCALR_AGENT_DEDICATED_[A-Z0-9_]+$")) { continue; }
+              if (!Regex.IsMatch(option.Name, @"^SCALR_AGENT_DEDICATED_[A-Z0-9_]+\z")) { continue; }
               allowed.Add(new JObject(new JProperty("name", option.Name), new JProperty("value", (string)option.Value)));
             }
             if (allowed.Count == 0) {
               return "{}";
             }
 
-            // A start override replaces the job's container, so it repeats the whole container.
+            // A start override replaces the image, resources and environment of the job's
+            // container, so it repeats them. The container keeps the job's volume mounts.
             var container = JObject.Parse(Encoding.UTF8.GetString(Convert.FromBase64String("${base64encode(jsonencode(local.agent_container))}")));
             var env = (JArray)container["env"];
             foreach (JObject item in allowed) {
@@ -162,7 +163,8 @@ locals {
 
   # The agent container, in the shape of the Container Apps job start API. The job template is
   # built from it, and a job start with agent options from the webhook sends it as an override.
-  # The start API accepts no volume mounts, so the cache mount is set on the job template only.
+  # The start API accepts no volume mounts. A container started with an override keeps the
+  # mounts of the job's container with the same name, so the cache mount is set there only.
   agent_container = {
     name  = "scalr-agent"
     image = var.container_image
