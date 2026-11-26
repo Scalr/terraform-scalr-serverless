@@ -139,8 +139,8 @@ locals {
       SCALR_AGENT_LOG_FORMAT = "json"
     },
     var.efs_file_system_id != null ? {
-      TF_PLUGIN_CACHE_DIR = "/terraform-cache"
-      TF_DATA_DIR         = "/providers-cache"
+      # The agent keeps software binaries and providers here, and points each run at them.
+      SCALR_AGENT_CACHE_DIR = "/scalr-agent-cache"
     } : {},
     var.agent_environment,
   )
@@ -158,34 +158,19 @@ resource "aws_ecs_task_definition" "webhook" {
   dynamic "volume" {
     for_each = var.efs_file_system_id != null ? [1] : []
     content {
-      name = "terraform-cache"
+      name = "scalr-agent-cache"
 
       efs_volume_configuration {
         file_system_id     = var.efs_file_system_id
         root_directory     = "/"
         transit_encryption = "ENABLED"
         authorization_config {
-          access_point_id = var.terraform_cache_access_point_id
+          access_point_id = var.scalr_agent_cache_access_point_id
         }
       }
     }
   }
 
-  dynamic "volume" {
-    for_each = var.efs_file_system_id != null ? [1] : []
-    content {
-      name = "providers-cache"
-
-      efs_volume_configuration {
-        file_system_id     = var.efs_file_system_id
-        root_directory     = "/"
-        transit_encryption = "ENABLED"
-        authorization_config {
-          access_point_id = var.providers_cache_access_point_id
-        }
-      }
-    }
-  }
 
   container_definitions = jsonencode([
     {
@@ -204,13 +189,8 @@ resource "aws_ecs_task_definition" "webhook" {
 
       mountPoints = var.efs_file_system_id != null ? [
         {
-          sourceVolume  = "terraform-cache"
-          containerPath = "/terraform-cache"
-          readOnly      = false
-        },
-        {
-          sourceVolume  = "providers-cache"
-          containerPath = "/providers-cache"
+          sourceVolume  = "scalr-agent-cache"
+          containerPath = "/scalr-agent-cache"
           readOnly      = false
         }
       ] : []

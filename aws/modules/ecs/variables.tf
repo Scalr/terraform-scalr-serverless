@@ -51,15 +51,9 @@ variable "efs_file_system_id" {
   default     = null
 }
 
-variable "terraform_cache_access_point_id" {
+variable "scalr_agent_cache_access_point_id" {
   type        = string
   description = "EFS access point ID for Terraform cache"
-  default     = null
-}
-
-variable "providers_cache_access_point_id" {
-  type        = string
-  description = "EFS access point ID for providers cache"
   default     = null
 }
 

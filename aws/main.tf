@@ -1,4 +1,6 @@
 terraform {
+  required_version = ">= 1.1"
+
   required_providers {
     aws = {
       source = "hashicorp/aws"
@@ -52,7 +54,13 @@ module "networking" {
   public_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24"]
 }
 
+moved {
+  from = module.efs
+  to   = module.efs[0]
+}
+
 module "efs" {
+  count  = var.scalr_agent_cache_enabled ? 1 : 0
   source = "./modules/efs"
 
   name       = "${var.vpc_name}-cache"
@@ -67,6 +75,7 @@ module "lambda" {
   subnet_ids          = module.networking.public_subnet_ids
   cluster_name        = module.ecs.cluster_name
   task_definition_arn = module.ecs.task_definition_arn
+  container_name      = module.ecs.container_name
   security_group_id   = module.ecs.security_group_id
   function_name       = var.lambda_function_name
   handler             = var.lambda_handler
@@ -77,7 +86,8 @@ module "lambda" {
 }
 
 module "agent_pool" {
-  source = "../modules/scalr/agent-pool"
+  source    = "../modules/scalr/agent-pool"
+  scalr_url = var.scalr_url
 
   webhook_url = module.api_gateway.url
   webhook_headers = [
@@ -111,7 +121,6 @@ module "ecs" {
   task_stop_timeout   = var.ecs_task_stop_timeout
 
   # EFS configuration for persistent cache
-  efs_file_system_id              = module.efs.file_system_id
-  terraform_cache_access_point_id = module.efs.terraform_cache_access_point_id
-  providers_cache_access_point_id = module.efs.providers_cache_access_point_id
+  efs_file_system_id                = one(module.efs[*].file_system_id)
+  scalr_agent_cache_access_point_id = one(module.efs[*].scalr_agent_cache_access_point_id)
 }

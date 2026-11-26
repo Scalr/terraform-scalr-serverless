@@ -46,7 +46,7 @@ run "webhook_starts_a_single_run_agent" {
   }
 
   assert {
-    condition     = length(azurerm_container_app_environment_storage.terraform_cache) == 0
+    condition     = length(azurerm_container_app_environment_storage.scalr_agent_cache) == 0
     error_message = "Without a storage account, the job must not mount the cache."
   }
 }
@@ -59,14 +59,41 @@ run "storage_account_enables_the_cache" {
   }
 
   variables {
-    storage_account_name       = "scalragentcache"
-    storage_account_key        = "key"
-    terraform_cache_share_name = "terraform-cache"
-    providers_cache_share_name = "providers-cache"
+    storage_account_name         = "scalragentcache"
+    storage_account_key          = "key"
+    scalr_agent_cache_share_name = "terraform-cache"
   }
 
   assert {
-    condition     = length(azurerm_container_app_job.scalr_agent.template[0].volume) == 2
-    error_message = "With a storage account, the job must mount both cache shares."
+    condition     = length(azurerm_container_app_job.scalr_agent.template[0].volume) == 1
+    error_message = "With a storage account, the job must mount the cache share."
+  }
+
+  assert {
+    condition = [
+      for mount in azurerm_container_app_job.scalr_agent.template[0].container[0].volume_mounts : mount.path
+      ] == [
+      for env in azurerm_container_app_job.scalr_agent.template[0].container[0].env : env.value
+      if env.name == "SCALR_AGENT_CACHE_DIR"
+    ]
+    error_message = "The agent cache directory must be the mounted cache share."
+  }
+
+  assert {
+    condition = anytrue([
+      for env in azurerm_container_app_job.scalr_agent.template[0].container[0].env :
+      env.name == "SCALR_AGENT_TOKEN" && env.secret_name == "scalr-token"
+    ])
+    error_message = "The agent must read its token from the job secret."
+  }
+
+  assert {
+    condition     = strcontains(azurerm_api_management_api_policy.webhook.xml_content, "<value>${local.launcher_version}</value>")
+    error_message = "The webhook response must report the launcher version."
+  }
+
+  assert {
+    condition     = strcontains(azurerm_api_management_api_policy.webhook.xml_content, "<value>azure-api-management</value>")
+    error_message = "The webhook response must report the launcher type."
   }
 }

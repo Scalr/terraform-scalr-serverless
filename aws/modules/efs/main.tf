@@ -41,10 +41,16 @@ resource "aws_security_group" "efs" {
   }
 }
 
-resource "aws_efs_access_point" "terraform_cache" {
+moved {
+  from = aws_efs_access_point.terraform_cache
+  to   = aws_efs_access_point.scalr_agent_cache
+}
+
+resource "aws_efs_access_point" "scalr_agent_cache" {
   file_system_id = aws_efs_file_system.cache.id
 
   root_directory {
+    # The path keeps its old name: a new path replaces the access point and empties the cache.
     path = "/terraform-cache"
 
     creation_info {
@@ -60,29 +66,6 @@ resource "aws_efs_access_point" "terraform_cache" {
   }
 
   tags = {
-    Name = "${var.name}-terraform-cache"
-  }
-}
-
-resource "aws_efs_access_point" "providers_cache" {
-  file_system_id = aws_efs_file_system.cache.id
-
-  root_directory {
-    path = "/providers-cache"
-
-    creation_info {
-      owner_gid   = 0
-      owner_uid   = 0
-      permissions = "755"
-    }
-  }
-
-  posix_user {
-    gid = 0
-    uid = 0
-  }
-
-  tags = {
-    Name = "${var.name}-providers-cache"
+    Name = "${var.name}-access-point"
   }
 }

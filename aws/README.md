@@ -4,6 +4,18 @@ Deploys a Scalr serverless agent pool on AWS. Each Terraform or OpenTofu run exe
 
 Product documentation: [Serverless agent pools](https://docs.scalr.io/docs/serverless-agents-pools).
 
+## Contents
+
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Outputs](#outputs)
+- [What gets created](#what-gets-created)
+- [Security](#security)
+- [Cost estimate](#cost-estimate)
+- [Troubleshooting](#troubleshooting)
+
 ## Architecture
 
 Solid arrows show how a webhook starts an agent and how the agent accesses its cache. The dotted arrow shows the agent's separate connection back to Scalr during the run.
@@ -26,46 +38,62 @@ flowchart LR
     ecs -. "connects back" .-> scalr
 ```
 
-API Gateway authenticates each webhook using the API key in the `x-api-key` header and, by default, checks that the source IP is on the Scalr allowlist. It then invokes Lambda, which calls ECS `RunTask` to start a Fargate task with the Scalr agent in single-run mode (`SCALR_AGENT_SINGLE=true`). The agent connects to Scalr, executes the run, and exits. The EFS file system keeps providers and modules between runs, so later runs skip those downloads.
+API Gateway authenticates each webhook using the API key in the `x-api-key` header and, by default, checks that the source IP is on the Scalr allowlist. It then invokes Lambda, which calls ECS `RunTask` to start a Fargate task with the Scalr agent in single-run mode (`SCALR_AGENT_SINGLE=true`). The run executes in the Fargate task, so the 15-minute Lambda limit does not apply to it. The agent connects to Scalr, executes the run, and exits. The agent cache is on EFS, so later runs skip the downloads of OpenTofu and Terraform binaries, providers, and modules.
 
-### Webhook delivery and idempotency
+### Webhook delivery
 
-Scalr delivers each webhook at least once, with the agent task ID in the `Idempotency-Key` header. It retries a delivery that times out, fails to connect, or returns a non-`2xx` status, up to 3 attempts in total. See the [webhook reference](https://docs.scalr.io/docs/serverless-webhooks#response-and-retries). An endpoint that does not deduplicate on that header can start an extra agent container for every retry.
+Scalr delivers each webhook at least once, with the agent task ID in the `Idempotency-Key` header, and retries a failed delivery ([webhook reference](https://docs.scalr.io/docs/serverless-webhooks#response-and-retries)). The Lambda function passes a hash of that key to ECS `RunTask` as `clientToken`, so retries within 24 hours start one Fargate task. It returns `202` with the `taskArn`, `400` without the header, and `502` when ECS cannot launch the task.
 
-The Lambda function passes the SHA-256 hash of `Idempotency-Key` to ECS `RunTask` as `clientToken`. ECS remembers a client token for up to 24 hours per cluster and returns the original task for repeated calls, so one key starts at most one Fargate task. The function follows the handler in the [manual setup guide](https://docs.scalr.io/docs/serverless-aws-fargate).
+Each response reports the function version in the `Scalr-Launcher-Version` header and the launcher type, `aws-lambda`, in the `Scalr-Launcher-Type` header. Scalr shows both on the agent pool.
 
-The function returns:
+### Task tags
 
-| Status | Meaning |
+The function sets `startedBy` on each Fargate task to the run ID. To find the task of a run:
+
+```shell
+aws ecs list-tasks --cluster <cluster> --started-by <run-id>
+```
+
+The function also tags the task with values from the webhook payload:
+
+| Tag | Value |
 |---|---|
-| `202` | ECS accepted the launch, or a task for this key already exists. The body has the `taskArn` |
-| `400` | The request has no `Idempotency-Key` header. The function starts no task |
-| `502` | The ECS `RunTask` request failed, or ECS could not launch the task. Scalr retries |
+| `scalr.io/run-id` | Run ID |
+| `scalr.io/agent.task-id` | Agent task ID |
+| `scalr.io/workspace-id` | Workspace ID |
+| `scalr.io/environment-id` | Environment ID |
+| `scalr.io/action` | Task type, such as `plan` or `apply` |
 
-ECS also remembers a launch failure for the client token. A retry with the same `Idempotency-Key` returns the same `502` without a new launch attempt.
+To split Fargate costs by workspace in Cost Explorer, activate the tags as cost allocation tags.
 
 ## Prerequisites
 
-- Terraform 1.0 or later, or OpenTofu.
+- Terraform 1.1 or later, or OpenTofu.
 - The AWS CLI, authenticated to an account where you can create VPC, API Gateway, Lambda, ECS, EFS, IAM, and Secrets Manager resources.
-- A Scalr account and an API token. The Scalr provider reads them from the `SCALR_HOSTNAME` and `SCALR_TOKEN` environment variables.
+- A Scalr account, its ID, and an API token.
 
 ## Quick start
 
-Every variable has a default. Create `terraform.tfvars` only to override one, then apply:
+Replace `v0.1.0` with the latest tag from the [releases page](https://github.com/Scalr/terraform-scalr-serverless/releases):
 
-```bash
-cd aws
-tofu init
-tofu apply
+```shell
+git clone --branch v0.1.0 https://github.com/Scalr/terraform-scalr-serverless.git
+cd terraform-scalr-serverless/aws
+export SCALR_HOSTNAME=example.scalr.io SCALR_ACCOUNT_ID=acc-xxxxxxxx SCALR_TOKEN=<token>
+tofu init && tofu apply
 ```
 
+`AWS_PROFILE` selects another AWS profile. To deploy to another region, set `TF_VAR_aws_region`: the configuration passes `aws_region` to the provider, so `AWS_REGION` has no effect. Every variable has a default; create `terraform.tfvars` only to override one. Resource names must be unique in the account, so set `ecs_cluster_name`, `ecs_task_name`, and `lambda_function_name` for a second deployment.
+
 The apply creates the AWS resources and the Scalr agent pool, and registers the webhook endpoint with Scalr.
+
+To upgrade a deployment, see [Upgrade](../README.md#upgrade).
 
 ## Configuration
 
 | Variable | Description | Default |
 |---|---|---|
+| `scalr_url` | Scalr URL the agent connects to. Set it when Scalr is not at `https://<account>.scalr.io` | `https://<account>.scalr.io` |
 | `aws_region` | AWS region | `us-east-1` |
 | `allow_all_ingress` | Accept webhooks from any IP address instead of the Scalr IP allowlist. Use only for testing | `false` |
 | `vpc_name` | VPC name prefix | `scalr-agent` |
@@ -78,6 +106,7 @@ The apply creates the AWS resources and the Scalr agent pool, and registers the 
 | `lambda_memory_size` | Lambda memory (MB) | `128` |
 | `lambda_runtime` | Lambda Python runtime. The handler requires `python3.11` or later | `python3.13` |
 | `agent_environment` | Extra environment variables for the agent container. See [Agent configuration](#agent-configuration) | `{}` |
+| `scalr_agent_cache_enabled` | Keep the agent cache on a persistent volume shared by all runs of the pool. See the tip in [Security](#security) | `true` |
 
 ### Agent configuration
 
@@ -113,7 +142,7 @@ The values are stored in plain text in the ECS task definition. Do not put secre
 | Lambda function | Starts one ECS task per webhook delivery |
 | ECS cluster and task definition | Run the Scalr agent container on Fargate |
 | Secrets Manager secret | Holds the Scalr agent token. The task definition injects it as `SCALR_AGENT_TOKEN` |
-| EFS file system and access points | Persistent Terraform provider and module cache |
+| EFS file system and access point | Persistent agent cache: OpenTofu and Terraform binaries, providers, and modules |
 | Security groups | Network access control for ECS and EFS |
 
 ## Security
@@ -124,6 +153,9 @@ The values are stored in plain text in the ECS task definition. Do not put secre
 - **Token storage**: the Scalr agent token lives in AWS Secrets Manager. The task definition references it with `valueFrom`, so the token does not appear in the task definition as plain text.
 - **VPC isolation**: ECS tasks run in dedicated subnets with security groups.
 - **EFS encryption**: EFS encrypts data at rest.
+
+> [!TIP]
+> All runs of the pool share the agent cache on EFS, including the OpenTofu and Terraform binaries. This suits a pool whose workspaces trust each other. For workspaces that must stay isolated, use a separate pool or set `scalr_agent_cache_enabled = false`.
 
 ## Cost estimate
 
@@ -191,5 +223,6 @@ curl -s https://scalr.io/.well-known/allowlist.txt
 | Webhook returns `202` but no new task starts | A task for this `Idempotency-Key` started within the last 24 hours | Expected. Send a new key to start another task |
 | `ECS could not launch the task` in Lambda logs | ECS rejected the launch | Read the `reason` in the logged `failures` list |
 | `ConflictException` in Lambda logs | A retry reused a client token with different launch parameters, for example after a new task definition revision | Keep launch settings stable while Scalr retries. The webhook returns `502` |
+| Agent exits right after it starts, with `already taken, canceled or finished` in its log | The run was canceled, or another agent took the task, before this container connected | Expected. The container stops instead of waiting idle |
 | ECS task fails to start | Image pull error or resource limits | Check the CloudWatch logs and verify that the image exists |
-| Slow first run | The agent downloads providers into the empty EFS cache | Expected. Later runs use the cached providers |
+| Slow first run | The agent downloads OpenTofu or Terraform and the providers into the empty EFS cache | Expected. Later runs use the cache |

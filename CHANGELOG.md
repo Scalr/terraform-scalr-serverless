@@ -10,6 +10,7 @@ Each entry names the platform it affects. A breaking entry says what to do befor
 
 - **AWS:** the `lambda_runtime` variable accepts only `python3.11` or later. If you set an older runtime, change it before you apply.
 - **AWS:** the configuration requires AWS provider 5.76 or later, below 6.0. Run `tofu init -upgrade` if your lock file pins an older provider.
+- **AWS and Azure:** the configurations require Terraform 1.1 or later, or OpenTofu. They use `moved` blocks to rename the cache resources without recreating them.
 - **AWS:** the Lambda function writes JSON logs. Update CloudWatch metric filters, subscription filters, or log queries that match the old text output.
 - **AWS:** the webhook returns the status codes of the [manual setup guide](https://docs.scalr.io/docs/serverless-aws-fargate): `202` with the `taskArn` when ECS accepts the launch, `400` without an `Idempotency-Key` header, and `502` when the ECS request or the launch fails. A request without the header no longer starts a task.
 - **AWS and Azure:** agent containers write JSON logs (`SCALR_AGENT_LOG_FORMAT=json`). Update log queries that match the old text output.
@@ -18,6 +19,11 @@ Each entry names the platform it affects. A breaking entry says what to do befor
 
 - **AWS:** the Lambda function passes the SHA-256 hash of the webhook `Idempotency-Key` header to ECS `RunTask` as `clientToken`. Webhook retries for the same agent task no longer start extra Fargate tasks.
 - **AWS and Azure:** the `agent_environment` variable sets extra environment variables, such as `SCALR_AGENT_*` options, on the agent container.
+- **AWS and Azure:** the webhook endpoint sets the `SCALR_AGENT_DEDICATED_*` options from the `agent_environment` field of the webhook payload on the agent container. With `SCALR_AGENT_DEDICATED_TASK_ID`, the agent runs only the task it was started for and exits when that task is already taken, canceled, or finished. Agent versions without the option ignore it.
+- **AWS and Azure:** the webhook response reports the launcher version in the `Scalr-Launcher-Version` header, starting with `0.1.0`, and the launcher type, the service that runs the launcher, in the `Scalr-Launcher-Type` header: `aws-lambda` on AWS and `azure-api-management` on Azure. Scalr shows both on the agent pool.
+- **AWS:** the Lambda function sets `startedBy` on each Fargate task to the run ID and tags the task with the run, agent task, workspace, and environment IDs and the action. `aws ecs list-tasks --started-by <run-id>` finds the task of a run. The Lambda role gets `ecs:TagResource`, limited to tagging during `RunTask`.
+- **AWS and Azure:** the `scalr_agent_cache_enabled` variable turns the persistent agent cache off. It defaults to `true`.
+- **AWS and Azure:** the `scalr_url` variable sets the Scalr URL the agent connects to. It defaults to `https://<account>.scalr.io`. Set it when Scalr runs at another host.
 
 ### Changed
 
@@ -25,6 +31,8 @@ Each entry names the platform it affects. A breaking entry says what to do befor
 - **AWS:** the default `lambda_runtime` is `python3.13`.
 - **AWS and Azure:** agent containers default to 4 vCPU and 8 GB (`ecs_limit_cpu = 4096` and `ecs_limit_memory = 8192` on AWS, `container_cpu = 4` and `container_memory_gb = 8` on Azure), up from 2 vCPU and 4 GB. This doubles the compute cost per run. Set the variables to keep the old size.
 - **AWS:** the agent task no longer sets `SCALR_AGENT_TIMEOUT`. The agent has no such option, so the variable had no effect. `ecs_task_stop_timeout` still sets the ECS stop timeout.
+- **AWS and Azure:** the agent cache uses one volume, mounted at `/scalr-agent-cache`. The apply deletes the `providers-cache` EFS access point on AWS and the `providers-cache` file share on Azure. Runs that started before the apply still use them through `TF_DATA_DIR`, so wait for running agents to finish before you apply.
+- **AWS and Azure:** agent containers no longer set `TF_PLUGIN_CACHE_DIR` and `TF_DATA_DIR`. The agent sets its own provider cache directory for each run, and `TF_DATA_DIR` made every run share one working data directory.
 
 ### Fixed
 
@@ -32,7 +40,11 @@ Each entry names the platform it affects. A breaking entry says what to do befor
 - **AWS:** a webhook returns `502` when ECS cannot launch the task. Before this fix, it returned `200` and Scalr did not retry.
 - **AWS:** the ECS request uses one attempt with a 5-second read timeout, so the webhook responds within Scalr's 15-second timeout.
 - **AWS:** the Lambda function no longer logs the request headers, which included the API key.
+- **AWS and Azure:** the agent keeps OpenTofu and Terraform binaries, providers, and modules on the persistent cache (`SCALR_AGENT_CACHE_DIR=/scalr-agent-cache`). Before this fix, the agent cached them on the container disk, and every run downloaded them again. All runs of the pool share the cache, so it suits a pool whose workspaces trust each other. Set `scalr_agent_cache_enabled = false` to turn it off.
+- **AWS:** a change to the API Gateway IP allowlist, including `allow_all_ingress`, redeploys the API stage. Before this fix, the stage kept the old resource policy until another change redeployed it. With `allow_all_ingress = true`, the API now keeps a resource policy that allows every IP address, instead of having none.
 
 ### Documentation
 
 - **Azure:** the README states that the module does not deduplicate webhook retries. The Container Apps Job start API has no idempotency key, so a retry can start an extra agent that finds no run and exits.
+- **AWS and Azure:** the READMEs give a minimal install: clone a release tag, export the Scalr settings, and run `tofu apply`. `SCALR_ACCOUNT_ID` is listed with the other Scalr provider settings.
+- The README no longer describes building a custom image with providers in `/terraform-cache/`. The cache volume hides that directory, and the agent uses its own cache layout.

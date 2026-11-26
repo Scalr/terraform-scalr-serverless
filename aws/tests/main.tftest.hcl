@@ -32,6 +32,7 @@ variables {
   function_name       = "scalr-agent"
   cluster_name        = "scalr-agent-pool-cluster"
   task_definition_arn = "arn:aws:ecs:us-east-1:123456789012:task-definition/scalr-agent-run:1"
+  container_name      = "scalr-agent-run"
   security_group_id   = "sg-0123456789abcdef0"
   subnet_ids          = ["subnet-a", "subnet-b"]
   source_file         = "lambda_function.py"
@@ -77,7 +78,7 @@ run "webhook_requires_api_key_and_scalr_ips" {
   }
 }
 
-run "allow_all_ingress_removes_ip_restriction" {
+run "allow_all_ingress_keeps_a_policy_that_allows_any_ip" {
   command = plan
 
   module {
@@ -89,8 +90,14 @@ run "allow_all_ingress_removes_ip_restriction" {
   }
 
   assert {
-    condition     = length(aws_api_gateway_rest_api_policy.scalr_ip_restriction) == 0
-    error_message = "allow_all_ingress must remove the IP restriction policy."
+    condition     = local.allowed_ips == tolist(["0.0.0.0/0"])
+    error_message = "allow_all_ingress must allow every IP address."
+  }
+
+  # A policy that is removed, not changed, does not reach the deployed stage.
+  assert {
+    condition     = length(aws_api_gateway_rest_api_policy.scalr_ip_restriction) == 1
+    error_message = "allow_all_ingress must keep the resource policy."
   }
 }
 
@@ -105,10 +112,11 @@ run "lambda_targets_the_agent_task" {
     condition = aws_lambda_function.scalr_webhook.environment[0].variables == tomap({
       CLUSTER         = "scalr-agent-pool-cluster"
       TASK_DEFINITION = "arn:aws:ecs:us-east-1:123456789012:task-definition/scalr-agent-run:1"
+      CONTAINER_NAME  = "scalr-agent-run"
       SECURITY_GROUP  = "sg-0123456789abcdef0"
       SUBNET_IDS      = "subnet-a,subnet-b"
     })
-    error_message = "The Lambda function must receive the agent cluster, task definition, and network."
+    error_message = "The Lambda function must receive the agent cluster, task definition, container name, and network."
   }
 
   assert {

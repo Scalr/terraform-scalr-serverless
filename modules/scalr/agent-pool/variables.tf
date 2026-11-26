@@ -4,6 +4,12 @@ variable "agent_pool_name" {
   default     = "webhook-agent-pool"
 }
 
+variable "scalr_url" {
+  description = "Scalr URL the agent connects to. Defaults to https://<account>.scalr.io"
+  type        = string
+  default     = null
+}
+
 # Future inputs for API Gateway integration
 variable "webhook_url" {
   type        = string

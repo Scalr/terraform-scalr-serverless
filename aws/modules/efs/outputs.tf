@@ -3,14 +3,9 @@ output "file_system_id" {
   value       = aws_efs_file_system.cache.id
 }
 
-output "terraform_cache_access_point_id" {
-  description = "EFS access point ID for Terraform cache"
-  value       = aws_efs_access_point.terraform_cache.id
-}
-
-output "providers_cache_access_point_id" {
-  description = "EFS access point ID for providers cache"
-  value       = aws_efs_access_point.providers_cache.id
+output "scalr_agent_cache_access_point_id" {
+  description = "EFS access point ID for the agent cache"
+  value       = aws_efs_access_point.scalr_agent_cache.id
 }
 
 output "security_group_id" {

@@ -7,6 +7,7 @@ os.environ.update(
     AWS_SECRET_ACCESS_KEY="testing",
     CLUSTER="cluster",
     TASK_DEFINITION="task-definition",
+    CONTAINER_NAME="scalr-agent",
     SUBNET_IDS="subnet-a,subnet-b",
     SECURITY_GROUP="sg",
 )

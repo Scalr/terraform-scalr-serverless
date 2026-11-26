@@ -4,6 +4,18 @@ Deploys a Scalr serverless agent pool on Azure. Each Terraform or OpenTofu run e
 
 Product documentation: [Serverless agent pools](https://docs.scalr.io/docs/serverless-agents-pools).
 
+## Contents
+
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Outputs](#outputs)
+- [What gets created](#what-gets-created)
+- [Cost estimate](#cost-estimate)
+- [Troubleshooting](#troubleshooting)
+- [Security](#security)
+
 ## Architecture
 
 Solid arrows show how a webhook starts an agent and how the agent accesses its cache. The dotted arrow shows the agent's separate connection back to Scalr during the run.
@@ -25,35 +37,43 @@ flowchart LR
     job -. "connects back" .-> scalr
 ```
 
-API Management (APIM) authenticates each webhook using the subscription key in the `Ocp-Apim-Subscription-Key` header. It uses its managed identity to start a Container Apps Job execution. The agent container runs in single-run mode (`SCALR_AGENT_SINGLE=true`). It starts in 5 to 15 seconds, connects to Scalr, executes the run, and exits. The Azure Files shares keep providers and modules between runs, so later runs skip those downloads.
+API Management (APIM) authenticates each webhook using the subscription key in the `Ocp-Apim-Subscription-Key` header. It uses its managed identity to start a Container Apps Job execution. The agent container runs in single-run mode (`SCALR_AGENT_SINGLE=true`). It starts in 5 to 15 seconds, connects to Scalr, executes the run, and exits. The agent cache is on an Azure Files share, so later runs skip the downloads of OpenTofu and Terraform binaries, providers, and modules.
 
-### Webhook delivery and idempotency
+### Webhook delivery
 
-The Container Apps Job start API has no idempotency key, so this module does not deduplicate deliveries. A retried delivery can start an extra agent that finds no task and exits. See the [webhook reference](https://docs.scalr.io/docs/serverless-webhooks#response-and-retries).
+Scalr delivers each webhook at least once and retries a failed delivery ([webhook reference](https://docs.scalr.io/docs/serverless-webhooks#response-and-retries)). The Container Apps Job start API has no idempotency key, so this module does not deduplicate deliveries. A retry can start an extra agent that finds no task and exits.
+
+Each response reports the launcher version in the `Scalr-Launcher-Version` header and the launcher type, `azure-api-management`, in the `Scalr-Launcher-Type` header. Scalr shows both on the agent pool.
 
 ## Prerequisites
 
-- Terraform 1.0 or later, or OpenTofu.
+- Terraform 1.1 or later, or OpenTofu.
 - The Azure CLI, signed in with `az login`, or another [azurerm authentication method](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs).
-- A Scalr account and an API token. The Scalr provider reads them from the `SCALR_HOSTNAME` and `SCALR_TOKEN` environment variables.
+- A Scalr account, its ID, and an API token.
 
 ## Quick start
 
-1. Copy the example variables and edit them for your environment:
+Replace `v0.1.0` with the latest tag from the [releases page](https://github.com/Scalr/terraform-scalr-serverless/releases):
 
-   ```bash
-   cd azure
-   cp terraform.tfvars.example terraform.tfvars
-   ```
+```shell
+git clone --branch v0.1.0 https://github.com/Scalr/terraform-scalr-serverless.git
+cd terraform-scalr-serverless/azure
+export SCALR_HOSTNAME=example.scalr.io SCALR_ACCOUNT_ID=acc-xxxxxxxx SCALR_TOKEN=<token>
+export ARM_SUBSCRIPTION_ID=$(az account show --query id --output tsv)
+tofu init && tofu apply
+```
 
-2. Run `tofu init`, then `tofu apply`. The apply creates the Azure resources and the Scalr agent pool, and registers the webhook endpoint with Scalr.
+To override a variable, copy `terraform.tfvars.example` to `terraform.tfvars` and edit it. The apply creates the Azure resources and the Scalr agent pool, and registers the webhook endpoint with Scalr.
 
 The first apply takes 10 to 15 minutes because APIM provisioning is slow. Later applies take a few minutes.
+
+To upgrade a deployment, see [Upgrade](../README.md#upgrade).
 
 ## Configuration
 
 | Variable | Description | Default |
 |---|---|---|
+| `scalr_url` | Scalr URL the agent connects to. Set it when Scalr is not at `https://<account>.scalr.io` | `https://<account>.scalr.io` |
 | `azure_location` | Azure region | `eastus` |
 | `resource_group_name` | Resource group name | `scalr-serverless-rg` |
 | `name_prefix` | Prefix for all resource names | `scalr-agent` |
@@ -64,6 +84,7 @@ The first apply takes 10 to 15 minutes because APIM provisioning is slow. Later 
 | `job_timeout` | Seconds a job execution can run before Container Apps stops it | `3600` |
 | `max_parallel_runs` | Maximum number of concurrent job executions | `10` |
 | `agent_environment` | Extra environment variables for the agent container. See [Agent configuration](#agent-configuration) | `{}` |
+| `scalr_agent_cache_enabled` | Keep the agent cache on a persistent volume shared by all runs of the pool. See the tip in [Security](#security) | `true` |
 
 ### Agent configuration
 
@@ -100,7 +121,7 @@ The values are stored in plain text in the Container Apps Job. Do not put secret
 | Container Apps Job | Runs the Scalr agent on demand |
 | API Management (Consumption) | Webhook endpoint with subscription key authentication |
 | Container Registry (Basic) | Mirrors the agent image from Docker Hub |
-| Storage account and file shares | Persistent Terraform provider and module cache |
+| Storage account and file share | Persistent agent cache: OpenTofu and Terraform binaries, providers, and modules |
 
 ## Cost estimate
 
@@ -170,3 +191,6 @@ az rest --method POST --uri \
 - **Registry**: the Container Registry (Basic) uses admin credentials. The job pulls images over the Azure network.
 - **Storage**: the storage account requires TLS 1.2, disables public blob access, and enables soft delete.
 - **Network**: the Container Apps subnet has a network security group and is delegated to `Microsoft.App/environments`.
+
+> [!TIP]
+> All runs of the pool share the agent cache on the Azure Files share, including the OpenTofu and Terraform binaries. This suits a pool whose workspaces trust each other. For workspaces that must stay isolated, use a separate pool or set `scalr_agent_cache_enabled = false`.

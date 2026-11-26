@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.1"
 
   required_providers {
     azurerm = {
@@ -32,7 +32,13 @@ module "networking" {
   resource_group_name = module.resource_group.name
 }
 
+moved {
+  from = module.storage
+  to   = module.storage[0]
+}
+
 module "storage" {
+  count  = var.scalr_agent_cache_enabled ? 1 : 0
   source = "./modules/storage"
 
   name                = var.name_prefix
@@ -50,7 +56,8 @@ module "registry" {
 }
 
 module "agent_pool" {
-  source = "../modules/scalr/agent-pool"
+  source    = "../modules/scalr/agent-pool"
+  scalr_url = var.scalr_url
 
   agent_pool_name = var.agent_pool_name
   webhook_url     = module.webhook.url
@@ -71,23 +78,22 @@ module "agent_pool" {
 module "webhook" {
   source = "./modules/webhook"
 
-  name                       = var.name_prefix
-  location                   = var.azure_location
-  resource_group_name        = module.resource_group.name
-  subnet_id                  = module.networking.subnet_id
-  container_image            = module.registry.image
-  registry_server            = module.registry.login_server
-  registry_username          = module.registry.admin_username
-  registry_password          = module.registry.admin_password
-  container_cpu              = var.container_cpu
-  container_memory_gb        = var.container_memory_gb
-  scalr_url                  = module.agent_pool.scalr_url
-  scalr_agent_token          = module.agent_pool.agent_token
-  storage_account_name       = module.storage.storage_account_name
-  storage_account_key        = module.storage.storage_account_key
-  terraform_cache_share_name = module.storage.terraform_cache_share_name
-  providers_cache_share_name = module.storage.providers_cache_share_name
-  job_timeout                = var.job_timeout
-  max_parallel_runs          = var.max_parallel_runs
-  agent_environment          = var.agent_environment
+  name                         = var.name_prefix
+  location                     = var.azure_location
+  resource_group_name          = module.resource_group.name
+  subnet_id                    = module.networking.subnet_id
+  container_image              = module.registry.image
+  registry_server              = module.registry.login_server
+  registry_username            = module.registry.admin_username
+  registry_password            = module.registry.admin_password
+  container_cpu                = var.container_cpu
+  container_memory_gb          = var.container_memory_gb
+  scalr_url                    = module.agent_pool.scalr_url
+  scalr_agent_token            = module.agent_pool.agent_token
+  storage_account_name         = one(module.storage[*].storage_account_name)
+  storage_account_key          = one(module.storage[*].storage_account_key)
+  scalr_agent_cache_share_name = one(module.storage[*].scalr_agent_cache_share_name)
+  job_timeout                  = var.job_timeout
+  max_parallel_runs            = var.max_parallel_runs
+  agent_environment            = var.agent_environment
 }

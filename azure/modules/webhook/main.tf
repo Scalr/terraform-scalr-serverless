@@ -50,10 +50,52 @@ resource "azurerm_api_management_api_policy" "webhook" {
           <set-header name="Content-Type" exists-action="override">
             <value>application/json</value>
           </set-header>
-          <set-body>{}</set-body>
+          <set-body>@{
+            // Scalr sends agent options, such as SCALR_AGENT_DEDICATED_TASK_ID, with each webhook.
+            JObject options = null;
+            try {
+              options = context.Request.Body.As<JObject>(preserveContent: true)["agent_environment"] as JObject;
+            } catch {
+              return "{}";
+            }
+            if (options == null) {
+              return "{}";
+            }
+
+            var allowed = new JArray();
+            foreach (var option in options.Properties()) {
+              if (option.Value.Type != JTokenType.String) { continue; }
+              // Only options about the dedicated task. Any other option could point the agent,
+              // which holds the pool token, at another server or change how it trusts one.
+              if (!Regex.IsMatch(option.Name, @"^SCALR_AGENT_DEDICATED_[A-Z0-9_]+\z")) { continue; }
+              allowed.Add(new JObject(new JProperty("name", option.Name), new JProperty("value", (string)option.Value)));
+            }
+            if (allowed.Count == 0) {
+              return "{}";
+            }
+
+            // A start override replaces the image, resources and environment of the job's
+            // container, so it repeats them. The container keeps the job's volume mounts.
+            var container = JObject.Parse(Encoding.UTF8.GetString(Convert.FromBase64String("${base64encode(jsonencode(local.agent_container))}")));
+            var env = (JArray)container["env"];
+            foreach (JObject item in allowed) {
+              foreach (var existing in env.Where(e => (string)e["name"] == (string)item["name"]).ToList()) {
+                existing.Remove();
+              }
+              env.Add(item);
+            }
+            return new JObject(new JProperty("containers", new JArray(container))).ToString(Newtonsoft.Json.Formatting.None);
+          }</set-body>
           <authentication-managed-identity resource="https://management.azure.com/" />
         </send-request>
-        <return-response response-variable-name="job-response" />
+        <return-response response-variable-name="job-response">
+          <set-header name="Scalr-Launcher-Type" exists-action="override">
+            <value>${local.launcher_type}</value>
+          </set-header>
+          <set-header name="Scalr-Launcher-Version" exists-action="override">
+            <value>${local.launcher_version}</value>
+          </set-header>
+        </return-response>
       </inbound>
     </policies>
   XML
@@ -82,22 +124,18 @@ resource "azurerm_container_app_environment" "this" {
   infrastructure_subnet_id = var.subnet_id != "" ? var.subnet_id : null
 }
 
-resource "azurerm_container_app_environment_storage" "terraform_cache" {
-  count                        = var.storage_account_name != "" ? 1 : 0
+moved {
+  from = azurerm_container_app_environment_storage.terraform_cache
+  to   = azurerm_container_app_environment_storage.scalr_agent_cache
+}
+
+resource "azurerm_container_app_environment_storage" "scalr_agent_cache" {
+  count = var.storage_account_name != "" ? 1 : 0
+  # The storage keeps its old name: a new name replaces it.
   name                         = "terraform-cache"
   container_app_environment_id = azurerm_container_app_environment.this.id
   account_name                 = var.storage_account_name
-  share_name                   = var.terraform_cache_share_name
-  access_key                   = var.storage_account_key
-  access_mode                  = "ReadWrite"
-}
-
-resource "azurerm_container_app_environment_storage" "providers_cache" {
-  count                        = var.storage_account_name != "" ? 1 : 0
-  name                         = "providers-cache"
-  container_app_environment_id = azurerm_container_app_environment.this.id
-  account_name                 = var.storage_account_name
-  share_name                   = var.providers_cache_share_name
+  share_name                   = var.scalr_agent_cache_share_name
   access_key                   = var.storage_account_key
   access_mode                  = "ReadWrite"
 }
@@ -105,6 +143,7 @@ resource "azurerm_container_app_environment_storage" "providers_cache" {
 locals {
   use_file_cache = var.storage_account_name != ""
   use_registry   = var.registry_server != ""
+  cache_dir      = "/scalr-agent-cache"
 
   # var.agent_environment overrides these defaults; its validation keeps the token and single-run mode.
   agent_environment = merge(
@@ -115,11 +154,33 @@ locals {
       SCALR_AGENT_LOG_FORMAT = "json"
     },
     local.use_file_cache ? {
-      TF_PLUGIN_CACHE_DIR = "/terraform-cache"
-      TF_DATA_DIR         = "/providers-cache"
+      # The agent keeps software binaries and providers here, and points each run at them.
+      SCALR_AGENT_CACHE_DIR = local.cache_dir
     } : {},
     var.agent_environment,
   )
+
+  # The agent container, in the shape of the Container Apps job start API. The job template is
+  # built from it, and a job start with agent options from the webhook sends it as an override.
+  # The start API accepts no volume mounts. A container started with an override keeps the
+  # mounts of the job's container with the same name, so the cache mount is set there only.
+  agent_container = {
+    name  = "scalr-agent"
+    image = var.container_image
+    resources = {
+      cpu    = var.container_cpu
+      memory = "${var.container_memory_gb}Gi"
+    }
+    env = concat(
+      [{ name = "SCALR_AGENT_TOKEN", secretRef = "scalr-token" }],
+      [for name, value in local.agent_environment : { name = name, value = value }],
+    )
+  }
+
+  # Reported to Scalr in the Scalr-Launcher-Version response header. Bump it with each release.
+  launcher_version = "0.1.0"
+  # Reported to Scalr in the Scalr-Launcher-Type response header: the service that runs the launcher.
+  launcher_type = "azure-api-management"
 }
 
 resource "azurerm_container_app_job" "scalr_agent" {
@@ -160,37 +221,25 @@ resource "azurerm_container_app_job" "scalr_agent" {
 
   template {
     container {
-      name   = "scalr-agent"
-      image  = var.container_image
-      cpu    = var.container_cpu
-      memory = "${var.container_memory_gb}Gi"
-
-      env {
-        name        = "SCALR_AGENT_TOKEN"
-        secret_name = "scalr-token"
-      }
+      name   = local.agent_container.name
+      image  = local.agent_container.image
+      cpu    = local.agent_container.resources.cpu
+      memory = local.agent_container.resources.memory
 
       dynamic "env" {
-        for_each = local.agent_environment
+        for_each = local.agent_container.env
         content {
-          name  = env.key
-          value = env.value
+          name        = env.value.name
+          value       = try(env.value.value, null)
+          secret_name = try(env.value.secretRef, null)
         }
       }
 
       dynamic "volume_mounts" {
         for_each = local.use_file_cache ? [1] : []
         content {
-          name = "terraform-cache"
-          path = "/terraform-cache"
-        }
-      }
-
-      dynamic "volume_mounts" {
-        for_each = local.use_file_cache ? [1] : []
-        content {
-          name = "providers-cache"
-          path = "/providers-cache"
+          name = "scalr-agent-cache"
+          path = local.cache_dir
         }
       }
     }
@@ -198,17 +247,8 @@ resource "azurerm_container_app_job" "scalr_agent" {
     dynamic "volume" {
       for_each = local.use_file_cache ? [1] : []
       content {
-        name         = "terraform-cache"
-        storage_name = azurerm_container_app_environment_storage.terraform_cache[0].name
-        storage_type = "AzureFile"
-      }
-    }
-
-    dynamic "volume" {
-      for_each = local.use_file_cache ? [1] : []
-      content {
-        name         = "providers-cache"
-        storage_name = azurerm_container_app_environment_storage.providers_cache[0].name
+        name         = "scalr-agent-cache"
+        storage_name = azurerm_container_app_environment_storage.scalr_agent_cache[0].name
         storage_type = "AzureFile"
       }
     }

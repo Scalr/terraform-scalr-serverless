@@ -41,6 +41,15 @@ resource "aws_iam_role_policy" "lambda_execution_policy" {
         Resource = "*"
       },
       {
+        # RunTask tags the task with the run IDs from the webhook.
+        Effect   = "Allow"
+        Action   = "ecs:TagResource"
+        Resource = "*"
+        Condition = {
+          StringEquals = { "ecs:CreateAction" = "RunTask" }
+        }
+      },
+      {
         Effect = "Allow"
         Action = [
           "iam:PassRole"
@@ -81,6 +90,7 @@ resource "aws_lambda_function" "scalr_webhook" {
       SUBNET_IDS      = join(",", var.subnet_ids)
       CLUSTER         = var.cluster_name
       TASK_DEFINITION = var.task_definition_arn
+      CONTAINER_NAME  = var.container_name
       SECURITY_GROUP  = var.security_group_id
     }
   }
