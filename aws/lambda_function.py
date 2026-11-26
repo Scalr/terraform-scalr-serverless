@@ -9,7 +9,7 @@ import json
 import logging
 import os
 import re
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, TypedDict
 
 import boto3
 from botocore.config import Config
@@ -17,7 +17,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 if TYPE_CHECKING:
     from types_boto3_ecs import ECSClient
-    from types_boto3_ecs.type_defs import KeyValuePairTypeDef, TagTypeDef, TaskOverrideTypeDef
+    from types_boto3_ecs.type_defs import KeyValuePairTypeDef, RunTaskRequestTypeDef, TagTypeDef
 
 LOG = logging.getLogger(__name__)
 
@@ -41,7 +41,9 @@ RUN_TAGS = {
 }
 """Webhook payload fields that tag the ECS task, keyed like the agent's Kubernetes Job labels."""
 TAG_VALUE = re.compile(r"[\w .:/=+@-]{1,256}")
+"""The tag values ECS accepts. RunTask fails on any other value, so such a tag is left out."""
 STARTED_BY = re.compile(r"[A-Za-z0-9_-]{1,36}")
+"""The `startedBy` values ECS accepts."""
 
 # One short attempt keeps the response within Scalr's 15-second webhook timeout.
 ECS: ECSClient = boto3.client(
@@ -132,40 +134,37 @@ def lambda_handler(event: ApiGatewayProxyEvent, _context: object) -> ApiGatewayP
     run_id = payload.get("run_id")
     log_fields = {"idempotency_key": idempotency_key, "run_id": run_id}
 
+    request: RunTaskRequestTypeDef = {
+        "cluster": os.environ["CLUSTER"],
+        "taskDefinition": os.environ["TASK_DEFINITION"],
+        "launchType": "FARGATE",
+        "count": 1,
+        # ECS returns the original task for a token it has already accepted.
+        "clientToken": hashlib.sha256(idempotency_key.encode()).hexdigest(),
+        "networkConfiguration": {
+            "awsvpcConfiguration": {
+                "subnets": os.environ["SUBNET_IDS"].split(","),
+                "securityGroups": [os.environ["SECURITY_GROUP"]],
+                "assignPublicIp": "ENABLED",
+            }
+        },
+        "overrides": {},
+    }
     # Scalr passes agent options, such as SCALR_AGENT_DEDICATED_TASK_ID, with each webhook.
-    overrides: TaskOverrideTypeDef = {}
     if environment := agent_environment(payload):
-        overrides = {
+        request["overrides"] = {
             "containerOverrides": [
                 {"name": os.environ["CONTAINER_NAME"], "environment": environment}
             ]
         }
-
     # Tags and `startedBy` find a run's task: `aws ecs list-tasks --started-by <run ID>`.
-    labels: dict[str, Any] = {}
     if isinstance(run_id, str) and STARTED_BY.fullmatch(run_id):
-        labels["startedBy"] = run_id
+        request["startedBy"] = run_id
     if tags := run_tags(payload):
-        labels["tags"] = tags
+        request["tags"] = tags
 
     try:
-        result = ECS.run_task(
-            cluster=os.environ["CLUSTER"],
-            taskDefinition=os.environ["TASK_DEFINITION"],
-            launchType="FARGATE",
-            count=1,
-            # ECS returns the original task for a token it has already accepted.
-            clientToken=hashlib.sha256(idempotency_key.encode()).hexdigest(),
-            networkConfiguration={
-                "awsvpcConfiguration": {
-                    "subnets": os.environ["SUBNET_IDS"].split(","),
-                    "securityGroups": [os.environ["SECURITY_GROUP"]],
-                    "assignPublicIp": "ENABLED",
-                }
-            },
-            overrides=overrides,
-            **labels,
-        )
+        result = ECS.run_task(**request)
     except (BotoCoreError, ClientError):
         LOG.exception("ECS RunTask request failed", extra=log_fields)
         return respond(502, {"error": "ECS RunTask request failed"})
