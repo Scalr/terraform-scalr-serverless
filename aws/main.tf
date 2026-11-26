@@ -113,6 +113,6 @@ module "ecs" {
   task_stop_timeout   = var.ecs_task_stop_timeout
 
   # EFS configuration for persistent cache
-  efs_file_system_id              = module.efs.file_system_id
-  terraform_cache_access_point_id = module.efs.terraform_cache_access_point_id
+  efs_file_system_id                = module.efs.file_system_id
+  scalr_agent_cache_access_point_id = module.efs.scalr_agent_cache_access_point_id
 }

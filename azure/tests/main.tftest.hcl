@@ -46,7 +46,7 @@ run "webhook_starts_a_single_run_agent" {
   }
 
   assert {
-    condition     = length(azurerm_container_app_environment_storage.terraform_cache) == 0
+    condition     = length(azurerm_container_app_environment_storage.scalr_agent_cache) == 0
     error_message = "Without a storage account, the job must not mount the cache."
   }
 }
@@ -59,9 +59,9 @@ run "storage_account_enables_the_cache" {
   }
 
   variables {
-    storage_account_name       = "scalragentcache"
-    storage_account_key        = "key"
-    terraform_cache_share_name = "terraform-cache"
+    storage_account_name         = "scalragentcache"
+    storage_account_key          = "key"
+    scalr_agent_cache_share_name = "terraform-cache"
   }
 
   assert {

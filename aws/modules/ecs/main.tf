@@ -159,14 +159,14 @@ resource "aws_ecs_task_definition" "webhook" {
   dynamic "volume" {
     for_each = var.efs_file_system_id != null ? [1] : []
     content {
-      name = "terraform-cache"
+      name = "scalr-agent-cache"
 
       efs_volume_configuration {
         file_system_id     = var.efs_file_system_id
         root_directory     = "/"
         transit_encryption = "ENABLED"
         authorization_config {
-          access_point_id = var.terraform_cache_access_point_id
+          access_point_id = var.scalr_agent_cache_access_point_id
         }
       }
     }
@@ -190,7 +190,7 @@ resource "aws_ecs_task_definition" "webhook" {
 
       mountPoints = var.efs_file_system_id != null ? [
         {
-          sourceVolume  = "terraform-cache"
+          sourceVolume  = "scalr-agent-cache"
           containerPath = "/scalr-agent-cache"
           readOnly      = false
         }

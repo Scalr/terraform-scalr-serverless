@@ -9,7 +9,7 @@ output "storage_account_key" {
   sensitive   = true
 }
 
-output "terraform_cache_share_name" {
+output "scalr_agent_cache_share_name" {
   description = "Azure Files share for the agent cache"
-  value       = azurerm_storage_share.terraform_cache.name
+  value       = azurerm_storage_share.scalr_agent_cache.name
 }

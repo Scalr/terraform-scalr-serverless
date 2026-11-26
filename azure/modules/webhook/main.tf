@@ -123,12 +123,18 @@ resource "azurerm_container_app_environment" "this" {
   infrastructure_subnet_id = var.subnet_id != "" ? var.subnet_id : null
 }
 
-resource "azurerm_container_app_environment_storage" "terraform_cache" {
-  count                        = var.storage_account_name != "" ? 1 : 0
+moved {
+  from = azurerm_container_app_environment_storage.terraform_cache
+  to   = azurerm_container_app_environment_storage.scalr_agent_cache
+}
+
+resource "azurerm_container_app_environment_storage" "scalr_agent_cache" {
+  count = var.storage_account_name != "" ? 1 : 0
+  # The storage keeps its old name: a new name replaces it.
   name                         = "terraform-cache"
   container_app_environment_id = azurerm_container_app_environment.this.id
   account_name                 = var.storage_account_name
-  share_name                   = var.terraform_cache_share_name
+  share_name                   = var.scalr_agent_cache_share_name
   access_key                   = var.storage_account_key
   access_mode                  = "ReadWrite"
 }
@@ -231,7 +237,7 @@ resource "azurerm_container_app_job" "scalr_agent" {
       dynamic "volume_mounts" {
         for_each = local.use_file_cache ? [1] : []
         content {
-          name = "terraform-cache"
+          name = "scalr-agent-cache"
           path = local.cache_dir
         }
       }
@@ -240,8 +246,8 @@ resource "azurerm_container_app_job" "scalr_agent" {
     dynamic "volume" {
       for_each = local.use_file_cache ? [1] : []
       content {
-        name         = "terraform-cache"
-        storage_name = azurerm_container_app_environment_storage.terraform_cache[0].name
+        name         = "scalr-agent-cache"
+        storage_name = azurerm_container_app_environment_storage.scalr_agent_cache[0].name
         storage_type = "AzureFile"
       }
     }

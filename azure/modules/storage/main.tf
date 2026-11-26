@@ -37,7 +37,13 @@ resource "azurerm_storage_account_queue_properties" "cache" {
   }
 }
 
-resource "azurerm_storage_share" "terraform_cache" {
+moved {
+  from = azurerm_storage_share.terraform_cache
+  to   = azurerm_storage_share.scalr_agent_cache
+}
+
+resource "azurerm_storage_share" "scalr_agent_cache" {
+  # The share keeps its old name: a new name replaces the share and empties the cache.
   name               = "terraform-cache"
   storage_account_id = azurerm_storage_account.cache.id
   quota              = 50

@@ -77,7 +77,7 @@ variable "storage_account_key" {
   sensitive   = true
 }
 
-variable "terraform_cache_share_name" {
+variable "scalr_agent_cache_share_name" {
   description = "Azure Files share for the agent cache"
   type        = string
   default     = ""
