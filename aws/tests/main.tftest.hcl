@@ -78,7 +78,7 @@ run "webhook_requires_api_key_and_scalr_ips" {
   }
 }
 
-run "allow_all_ingress_removes_ip_restriction" {
+run "allow_all_ingress_keeps_a_policy_that_allows_any_ip" {
   command = plan
 
   module {
@@ -90,8 +90,14 @@ run "allow_all_ingress_removes_ip_restriction" {
   }
 
   assert {
-    condition     = length(aws_api_gateway_rest_api_policy.scalr_ip_restriction) == 0
-    error_message = "allow_all_ingress must remove the IP restriction policy."
+    condition     = local.allowed_ips == tolist(["0.0.0.0/0"])
+    error_message = "allow_all_ingress must allow every IP address."
+  }
+
+  # A policy that is removed, not changed, does not reach the deployed stage.
+  assert {
+    condition     = length(aws_api_gateway_rest_api_policy.scalr_ip_restriction) == 1
+    error_message = "allow_all_ingress must keep the resource policy."
   }
 }
 

@@ -58,8 +58,10 @@ data "aws_iam_policy_document" "scalr_api_policy" {
   }
 }
 
+# With allow_all_ingress the policy stays and allows 0.0.0.0/0. Removing it instead would leave
+# the stage on the old policy: Terraform destroys the policy after it creates the new deployment.
 resource "aws_api_gateway_rest_api_policy" "scalr_ip_restriction" {
-  count       = length(local.allowed_ips) > 0 && !var.allow_all_ingress ? 1 : 0
+  count       = length(local.allowed_ips) > 0 ? 1 : 0
   rest_api_id = aws_api_gateway_rest_api.scalr_webhook.id
   policy      = data.aws_iam_policy_document.scalr_api_policy[0].json
 }
@@ -175,6 +177,9 @@ resource "aws_api_gateway_deployment" "deployment" {
       local.allowed_ips,
     ]))
   }
+
+  # The deployment snapshots the resource policy, so the policy must change first.
+  depends_on = [aws_api_gateway_rest_api_policy.scalr_ip_restriction]
 
   lifecycle {
     create_before_destroy = true

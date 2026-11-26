@@ -39,7 +39,7 @@ Each entry names the platform it affects. A breaking entry says what to do befor
 - **AWS:** the ECS request uses one attempt with a 5-second read timeout, so the webhook responds within Scalr's 15-second timeout.
 - **AWS:** the Lambda function no longer logs the request headers, which included the API key.
 - **AWS and Azure:** the agent keeps OpenTofu and Terraform binaries, providers, and modules on the persistent cache (`SCALR_AGENT_CACHE_DIR=/scalr-agent-cache`). Before this fix, the agent cached them on the container disk, and every run downloaded them again.
-- **AWS:** a change to the API Gateway IP allowlist, including `allow_all_ingress`, redeploys the API stage. Before this fix, the stage kept the old resource policy until another change redeployed it.
+- **AWS:** a change to the API Gateway IP allowlist, including `allow_all_ingress`, redeploys the API stage. Before this fix, the stage kept the old resource policy until another change redeployed it. With `allow_all_ingress = true`, the API now keeps a resource policy that allows every IP address, instead of having none.
 
 ### Documentation
 
